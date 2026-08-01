@@ -1,0 +1,2124 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机构教学老师工作台</title>
+<style>
+:root {
+  --primary: #7ec8a0;
+  --primary-light: #e8f5ee;
+  --secondary: #8db5d6;
+  --secondary-light: #eaf2f8;
+  --bg: #faf9f6;
+  --bg-body: #faf9f6;
+  --bg-card: #ffffff;
+  --card: #ffffff;
+  --text: #3a3a3a;
+  --text-light: #7a7a7a;
+  --text-secondary: #7a7a7a;
+  --border: #e8e4df;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --radius: 12px;
+  --nav-width: 220px;
+  --nav-collapsed: 60px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+#app { display:flex; min-height:100vh; }
+
+/* 导航栏 */
+.sidebar { width:var(--nav-width); background:linear-gradient(180deg, #f0f7f2 0%, #eaf2f8 100%); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; left:0; top:0; bottom:0; z-index:100; transition:width 0.3s; overflow:hidden; }
+.sidebar.collapsed { width:var(--nav-collapsed); }
+.sidebar-header { padding:20px 16px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+.sidebar-header .logo { width:32px; height:32px; background:var(--primary); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; font-weight:bold; flex-shrink:0; }
+.sidebar-header .title { font-size:15px; font-weight:600; white-space:nowrap; }
+.sidebar.collapsed .title { display:none; }
+.toggle-btn { margin-left:auto; background:none; border:none; cursor:pointer; font-size:18px; color:var(--text-light); padding:4px; flex-shrink:0; }
+.sidebar.collapsed .toggle-btn { margin-left:0; }
+.nav-menu { flex:1; padding:12px 8px; display:flex; flex-direction:column; gap:4px; overflow-y:auto; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer; transition:all 0.2s; color:var(--text); font-size:14px; white-space:nowrap; border:none; background:none; width:100%; text-align:left; }
+.nav-item:hover { background:rgba(126,200,160,0.15); }
+.nav-item.active { background:var(--primary); color:#fff; font-weight:600; }
+.nav-item .icon { font-size:18px; flex-shrink:0; width:22px; text-align:center; }
+.sidebar.collapsed .nav-item { justify-content:center; padding:10px 8px; }
+.sidebar.collapsed .nav-label { display:none; }
+
+/* 主内容 */
+.main { margin-left:var(--nav-width); flex:1; min-width:0; transition:margin-left 0.3s; display:flex; flex-direction:column; }
+.main.expanded { margin-left:var(--nav-collapsed); }
+.page-header { padding:20px 28px 0; margin-bottom:8px; }
+.page-header h1 { font-size:22px; font-weight:700; color:var(--text); }
+.page-header .date-info { font-size:13px; color:var(--text-light); margin-top:4px; }
+.page-content { padding:20px 28px 40px; flex:1; overflow-y:auto; }
+
+/* 卡片 */
+.card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; transition:box-shadow 0.2s; }
+.card:hover { box-shadow:0 4px 20px rgba(0,0,0,0.1); }
+
+/* 记账台 */
+.section-title { font-size:16px; font-weight:600; margin-bottom:16px; padding-bottom:8px; border-bottom:2px solid var(--primary-light); display:flex; align-items:center; gap:8px; }
+.section-title::before { content:''; width:4px; height:18px; background:var(--primary); border-radius:2px; }
+.course-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:14px; margin-bottom:28px; }
+.course-card { cursor:pointer; text-align:center; padding:20px 16px; }
+.course-card .card-icon { font-size:28px; margin-bottom:8px; }
+.course-card .card-label { font-size:14px; font-weight:600; margin-bottom:4px; }
+.course-card .card-count { font-size:28px; font-weight:700; color:var(--primary); }
+.course-card .card-sub { font-size:12px; color:var(--text-light); margin-top:2px; }
+.reimburse-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; }
+.reimburse-card { cursor:pointer; }
+.reimburse-card .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.reimburse-card .card-label { font-size:14px; font-weight:600; }
+.reimburse-card .card-amount { font-size:18px; font-weight:700; color:#e08b5a; }
+.reimburse-card .card-detail { font-size:12px; color:var(--text-light); }
+
+/* 弹窗/详情面板 */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; display:flex; align-items:center; justify-content:center; }
+.modal { background:var(--card); border-radius:var(--radius); box-shadow:0 8px 40px rgba(0,0,0,0.15); width:90%; max-width:640px; max-height:80vh; display:flex; flex-direction:column; }
+.modal-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.modal-header h3 { font-size:16px; font-weight:600; }
+.modal-close { background:none; border:none; font-size:22px; cursor:pointer; color:var(--text-light); padding:4px; line-height:1; }
+.modal-body { padding:20px; overflow-y:auto; flex:1; }
+.modal-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+
+/* 表格 */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); }
+th { background:var(--primary-light); font-weight:600; color:var(--text); white-space:nowrap; }
+tr:hover td { background:#fafcfb; }
+
+/* 按钮 */
+.btn { padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:500; transition:all 0.2s; display:inline-flex; align-items:center; gap:4px; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:#6ab88f; }
+.btn-outline { background:#fff; border:1px solid var(--border); color:var(--text); }
+.btn-outline:hover { border-color:var(--primary); color:var(--primary); }
+.btn-danger { background:#fde8e8; color:#c53030; }
+.btn-danger:hover { background:#fbd5d5; }
+.btn-sm { padding:4px 10px; font-size:12px; }
+.btn-group { display:flex; gap:6px; flex-wrap:wrap; }
+
+/* 搜索/筛选栏 */
+.toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+.toolbar input, .toolbar select { padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:#fff; color:var(--text); outline:none; }
+.toolbar input:focus, .toolbar select:focus { border-color:var(--primary); }
+.toolbar input { min-width:200px; }
+
+/* 学习进度 */
+.subject-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px; }
+.subject-card .subject-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.subject-card .subject-name { font-size:15px; font-weight:600; }
+.subject-card .subject-count { font-size:12px; color:var(--text-light); background:var(--primary-light); padding:2px 8px; border-radius:10px; }
+.level-group { margin-bottom:10px; }
+.level-title { font-size:13px; font-weight:600; color:var(--primary); margin-bottom:4px; }
+.level-students { font-size:13px; color:var(--text); line-height:1.8; }
+.student-link { color:var(--primary); text-decoration:none; font-weight:500; cursor:pointer; }
+.student-link:hover { text-decoration:underline; color:#5ba878; }
+.course-del-btn { background:none; border:none; color:#c53030; cursor:pointer; font-size:14px; font-weight:bold; padding:0 2px; line-height:1; vertical-align:middle; margin-left:2px; }
+.course-del-btn:hover { color:#e53e3e; }
+.course-add-row { margin-top:6px; display:flex; gap:6px; align-items:center; }
+.course-add-row input { flex:1; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:12px; outline:none; }
+.course-add-row input:focus { border-color:var(--primary); }
+
+/* 表单 */
+.form-group { margin-bottom:12px; }
+.form-group label { display:block; font-size:12px; font-weight:600; color:var(--text-light); margin-bottom:4px; }
+.form-group input, .form-group select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; outline:none; }
+.form-group input:focus, .form-group select:focus { border-color:var(--primary); }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* 响应式 */
+@media (max-width:768px) {
+  .sidebar { width:var(--nav-collapsed); }
+  .sidebar .title, .sidebar .nav-label { display:none; }
+  .sidebar .nav-item { justify-content:center; }
+  .main { margin-left:var(--nav-collapsed); }
+  .course-cards { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+  .subject-cards { grid-template-columns:1fr; }
+  .form-row { grid-template-columns:1fr; }
+  .page-content { padding:14px 12px; }
+}
+@media (min-width:769px) and (max-width:1024px) {
+  .course-cards { grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); }
+}
+
+/* 课程表 */
+.schedule-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.schedule-week-label { font-size:15px; font-weight:600; color:var(--text); }
+.schedule-grid { display:grid; grid-template-columns:90px repeat(7, 1fr); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--card); }
+.schedule-corner { background:var(--primary-light); border-bottom:1px solid var(--border); border-right:1px solid var(--border); }
+.schedule-header { text-align:center; padding:10px 4px; background:var(--primary-light); border-bottom:2px solid var(--primary); border-right:1px solid var(--border); }
+.schedule-header.today { background:#d4edda; border-bottom-color:#28a745; }
+.schedule-header:last-child { border-right:none; }
+.schedule-dow { font-size:13px; font-weight:600; }
+.schedule-date { font-size:12px; color:var(--text-light); }
+.schedule-header.today .schedule-dow { color:#28a745; }
+.schedule-time { padding:8px 6px; font-size:12px; font-weight:600; color:var(--text-light); background:#f8f9fa; border-right:1px solid var(--border); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:center; white-space:nowrap; }
+.schedule-cell { min-height:80px; padding:6px 4px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.15s; display:flex; flex-direction:column; gap:3px; }
+.schedule-cell:last-child { border-right:none; }
+.schedule-cell:hover { background:var(--primary-light); }
+.schedule-course { border-radius:6px; padding:4px 6px; font-size:11px; line-height:1.4; cursor:pointer; transition:filter 0.15s; }
+.schedule-course:hover { filter:brightness(0.92); }
+.schedule-course .course-time { font-weight:600; display:block; }
+.schedule-course .course-student { display:block; }
+.schedule-course .course-type-tag { font-size:10px; background:rgba(255,255,255,0.7); border-radius:3px; padding:0 4px; }
+.course-member { background:#c8e6c9; }
+.course-contest { background:#ffe0b2; }
+.course-holiday { background:#bbdefb; }
+.course-outing { background:#e1bee7; }
+.schedule-empty { font-size:11px; color:var(--text-light); text-align:center; padding:8px 0; }
+
+/* 统计 */
+.stats-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.stats-month-label { font-size:14px; font-weight:600; color:var(--text); min-width:80px; text-align:center; }
+@media (max-width:768px) {
+  .schedule-grid { grid-template-columns:60px repeat(7, 1fr); font-size:11px; }
+  .schedule-header { padding:6px 2px; }
+  .schedule-cell { min-height:60px; padding:3px 2px; }
+  .schedule-course { padding:3px 4px; font-size:10px; }
+}
+
+/* ===== Todo清单 ===== */
+.todo-wrap { max-width:600px; margin:0 auto; }
+.todo-header { text-align:center; margin-bottom:24px; }
+.todo-header h2 { font-size:24px; font-weight:700; color:var(--primary); }
+.todo-header .todo-date { font-size:14px; color:var(--text-light); margin-top:4px; }
+
+/* 输入区 */
+.todo-input-row { display:flex; gap:10px; margin-bottom:20px; }
+.todo-input-row input { flex:1; padding:10px 14px; border:2px solid var(--border); border-radius:var(--radius); font-size:15px; outline:none; transition:border-color 0.2s; background:var(--card); color:var(--text); }
+.todo-input-row input:focus { border-color:var(--primary); }
+.todo-input-row button { padding:10px 22px; background:var(--primary); color:#fff; border:none; border-radius:var(--radius); font-size:15px; font-weight:600; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+.todo-input-row button:hover { background:#6ab88e; transform:translateY(-1px); box-shadow:0 4px 12px rgba(126,200,160,0.35); }
+.todo-input-row button:active { transform:translateY(0); }
+
+/* 筛选标签 */
+.todo-filters { display:flex; gap:8px; margin-bottom:16px; justify-content:center; }
+.todo-filters button { padding:6px 18px; border-radius:20px; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:14px; cursor:pointer; transition:all 0.2s; }
+.todo-filters button:hover { border-color:var(--primary); color:var(--primary); }
+.todo-filters button.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+/* 任务列表 */
+.todo-list { list-style:none; }
+.todo-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--card); border-radius:var(--radius); margin-bottom:8px; box-shadow:var(--shadow); transition:all 0.2s; }
+.todo-item:hover { transform:translateX(4px); box-shadow:0 4px 18px rgba(0,0,0,0.1); }
+.todo-item.completed .todo-text { text-decoration:line-through; color:#b0b0b0; }
+.todo-check { width:20px; height:20px; border:2px solid #ccc; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.2s; font-size:12px; color:transparent; }
+.todo-check:hover { border-color:var(--primary); }
+.todo-check.done { background:var(--primary); border-color:var(--primary); color:#fff; }
+.todo-text { flex:1; font-size:15px; color:var(--text); word-break:break-word; transition:color 0.2s; }
+.todo-item.completed .todo-text { color:#b0b0b0; }
+.todo-actions { display:flex; gap:6px; flex-shrink:0; }
+.todo-actions button { padding:4px 10px; border-radius:6px; border:1px solid var(--border); background:var(--card); font-size:13px; cursor:pointer; transition:all 0.15s; color:var(--text); }
+.todo-actions .btn-edit:hover { border-color:var(--secondary); color:var(--secondary); background:var(--secondary-light); }
+.todo-actions .btn-del:hover { border-color:#e07070; color:#e07070; background:#fef0f0; }
+
+/* 底部统计 */
+.todo-footer { display:flex; align-items:center; justify-content:space-between; margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
+.todo-count { font-size:14px; color:var(--text-light); }
+.todo-count strong { color:var(--primary); margin:0 4px; }
+.todo-footer .btn-clear { padding:6px 14px; border-radius:6px; border:1px solid #e07070; background:#fff; color:#e07070; font-size:13px; cursor:pointer; transition:all 0.2s; }
+.todo-footer .btn-clear:hover { background:#e07070; color:#fff; }
+.todo-footer .btn-clear:disabled { border-color:#ddd; color:#ccc; cursor:default; background:#fff; }
+.todo-empty { text-align:center; padding:40px 0; color:var(--text-light); font-size:15px; }
+
+/* 侧边栏底部：数据导出/导入 */
+.sidebar-footer { padding:12px 14px; border-top:1px solid rgba(255,255,255,0.15); margin-top:auto; }
+.data-status { display:flex; align-items:center; gap:6px; font-size:11px; color:rgba(255,255,255,0.7); margin-bottom:8px; }
+.data-status .status-dot { width:7px; height:7px; border-radius:50%; background:#7ec8a0; flex-shrink:0; }
+.data-status.no-file .status-dot { background:#e0a060; }
+.sidebar-footer .btn-data { display:block; width:100%; padding:8px 0; margin-bottom:6px; border:1px solid rgba(255,255,255,0.3); border-radius:8px; background:transparent; color:rgba(255,255,255,0.85); font-size:13px; cursor:pointer; transition:all 0.2s; text-align:center; }
+.sidebar-footer .btn-data:hover { background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.5); }
+.sidebar-footer .btn-data:last-child { margin-bottom:0; }
+.sidebar.collapsed .sidebar-footer { padding:8px 4px; }
+.sidebar.collapsed .sidebar-footer .btn-data { font-size:11px; padding:6px 0; }
+.sidebar.collapsed .data-status { justify-content:center; }
+.sidebar.collapsed .data-status span:not(.status-dot) { display:none; }
+
+/* ===== 提成管理 ===== */
+.commission-cards {
+  display: grid; grid-template-columns: 1fr;
+  gap: 14px; margin-bottom: 16px;
+}
+.commission-cards .card-label {
+  font-size: .85rem; font-weight: 600; color: var(--text);
+  margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.commission-cards .card-amount {
+  font-size: 1.5rem; font-weight: 700; color: var(--primary);
+  margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.commission-cards .card-sub {
+  font-size: .78rem; color: var(--text-secondary); line-height: 1.4;
+}
+.commission-card.chart-card {
+  padding: 16px; display: flex; align-items: center; justify-content: center;
+  min-height: 160px;
+}
+.canvas-bar-chart { width: 100%; height: 100%; min-height: 160px; }
+.commission-actions { margin-top: 4px; margin-bottom: 8px; }
+.commission-actions button {
+  background: var(--primary); color: #fff; border: none;
+  border-radius: 6px; padding: 8px 18px; cursor: pointer;
+  font-size: .85rem; font-weight: 500;
+  transition: opacity .2s;
+}
+.commission-actions button:hover { opacity: .85; }
+.commission-detail-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.commission-detail-table th {
+  background: var(--bg-body); padding: 10px 12px; text-align: left;
+  border-bottom: 2px solid var(--border); font-weight: 600; white-space: nowrap;
+}
+.commission-detail-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.commission-detail-table .btn-sm { padding: 3px 8px; font-size: .75rem; margin: 0 2px; }
+
+/* ===== 提成管理 响应式 ===== */
+@media (max-width: 860px) {
+  .commission-card.chart-card { min-height: 200px; }
+  .canvas-bar-chart { min-height: 200px; }
+}
+@media (max-width: 640px) {
+  .commission-card.chart-card { padding: 14px 12px; }
+  .commission-cards .card-amount { font-size: 1.25rem; }
+  .modal { max-width: 95%; max-height: 90vh; }
+  .modal-header { padding: 12px 14px; }
+  .modal-body { padding: 12px; overflow-x: auto; }
+  .modal-footer { padding: 10px 14px; }
+  .commission-detail-table { min-width: 500px; }
+}
+</style>
+</head>
+<body>
+<div id="loading" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#faf9f6;z-index:9999;font-size:16px;color:#7a7a7a;font-family:sans-serif;">正在加载教师工作台...</div>
+<script src="vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>window.onerror=function(m){document.getElementById('loading').innerHTML='<div style="text-align:center;color:#c53030;"><p>加载失败</p><p style="font-size:13px;">'+m+'</p></div>';};</script>
+<div id="app"></div>
+<script type="text/x-template" id="app-tpl">
+  <!-- 侧边栏 -->
+  <nav :class="['sidebar', { collapsed: sidebarCollapsed }]">
+    <div class="sidebar-header">
+      <div class="logo">T</div>
+      <span class="title">教师工作台</span>
+      <button class="toggle-btn" @click="sidebarCollapsed=!sidebarCollapsed">☰</button>
+    </div>
+    <div class="nav-menu">
+      <button v-for="item in navItems" :key="item.key"
+        :class="['nav-item', { active: currentPage === item.key }]"
+        @click="currentPage = item.key">
+        <span class="icon">{{ item.icon }}</span>
+        <span class="nav-label">{{ item.label }}</span>
+      </button>
+    </div>
+    <!-- 数据文件管理 -->
+    <div class="sidebar-footer">
+      <div class="data-status" v-if="dataFromFile" title="数据自动同步到 teacher-workbench-data.json">
+        <span class="status-dot"></span>文件同步中
+      </div>
+      <div class="data-status no-file" v-else title="当前使用浏览器本地存储">
+        <span class="status-dot"></span>未配置文件
+      </div>
+      <button class="btn-data" @click="setupDataFileHandler">{{ dataFromFile ? '更换数据文件' : '设置数据文件' }}</button>
+      <button class="btn-data" @click="exportData">导出备份</button>
+    </div>
+  </nav>
+
+  <!-- 主内容 -->
+  <div :class="['main', { expanded: sidebarCollapsed }]">
+    <div class="page-header">
+      <h1>{{ currentNav.label }}</h1>
+      <div class="date-info">{{ todayStr }} · {{ weekdayStr }}</div>
+    </div>
+    <div class="page-content">
+
+      <!-- ==================== 记账台 ==================== -->
+      <div v-if="currentPage==='ledger'">
+        <!-- 机构课时 -->
+        <div class="section-title">机构课时</div>
+        <div class="stats-toolbar">
+          <button class="btn btn-outline btn-sm" @click="prevCourseViewDate">&lt;</button>
+          <span class="stats-month-label">{{ courseViewDateLabel }}</span>
+          <button class="btn btn-outline btn-sm" @click="nextCourseViewDate">&gt;</button>
+          <button class="btn btn-outline btn-sm" @click="goTodayCourseView">今天</button>
+        </div>
+        <div class="course-cards">
+          <div class="card course-card" v-for="c in courseTypes" :key="c.key" @click="openCourseDetail(c)">
+            <div class="card-icon">{{ c.icon }}</div>
+            <div class="card-label">{{ c.label }}</div>
+            <div class="card-count">{{ getCourseCountByDate(c.key) }} 人</div>
+            <div class="card-sub">{{ courseViewDateLabel }}</div>
+          </div>
+        </div>
+
+        <!-- 本月统计 -->
+        <div class="section-title">本月统计</div>
+        <div class="stats-toolbar">
+          <button class="btn btn-outline btn-sm" @click="prevStatsMonth">&lt;</button>
+          <span class="stats-month-label">{{ statsMonthLabel }}</span>
+          <button class="btn btn-outline btn-sm" @click="nextStatsMonth">&gt;</button>
+          <button class="btn btn-outline btn-sm" @click="goCurrentStatsMonth">本月</button>
+        </div>
+        <div class="course-cards">
+          <div class="card course-card" @click="openMonthStats">
+            <div class="card-icon">👨‍🎓</div>
+            <div class="card-label">本月上课学员</div>
+            <div class="card-count">{{ monthlyStudentCount }} 人</div>
+            <div class="card-sub">{{ statsMonthLabel }} · {{ monthlyCoursesForStats.length }} 节课</div>
+          </div>
+        </div>
+
+        <!-- 餐补与报销 -->
+        <div class="section-title">餐补与报销</div>
+        <div class="stats-toolbar">
+          <button class="btn btn-outline btn-sm" @click="prevReimburseMonth">&lt;</button>
+          <span class="stats-month-label">{{ reimburseMonthLabel }}</span>
+          <button class="btn btn-outline btn-sm" @click="nextReimburseMonth">&gt;</button>
+          <button class="btn btn-outline btn-sm" @click="goCurrentReimburseMonth">本月</button>
+        </div>
+        <div class="reimburse-cards">
+          <div class="card reimburse-card" @click="openMealDetail">
+            <div class="card-header">
+              <span class="card-label">餐补</span>
+              <span class="card-amount">¥{{ mealViewMonthTotal }}</span>
+            </div>
+            <div class="card-detail">{{ reimburseMonthLabel }} · {{ mealsByViewMonth.length }} 条记录</div>
+          </div>
+          <div class="card reimburse-card" @click="openReimburseDetail">
+            <div class="card-header">
+              <span class="card-label">报销</span>
+              <span class="card-amount">¥{{ reimburseViewMonthTotal }}</span>
+            </div>
+            <div class="card-detail">{{ reimbursementsByViewMonth.filter(r=>r.status==='待审批').length }} 条待审批</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Todo清单 ==================== -->
+      <div v-if="currentPage==='todo'">
+        <div class="todo-wrap">
+          <!-- 顶部：标题 + 日期 -->
+          <div class="todo-header">
+            <h2>📝 Todo 清单</h2>
+            <div class="todo-date">{{ todoDateLabel }}</div>
+          </div>
+
+          <!-- 输入框 + 添加按钮 -->
+          <div class="todo-input-row">
+            <input
+              v-model="todoInput"
+              @keyup.enter="addTodo"
+              placeholder="写一条待办事项…"
+              maxlength="100"
+            />
+            <button @click="addTodo">添加</button>
+          </div>
+
+          <!-- 筛选标签 -->
+          <div class="todo-filters">
+            <button
+              v-for="f in todoFilters"
+              :key="f.key"
+              :class="{ active: todoFilterKey === f.key }"
+              @click="todoFilterKey = f.key"
+            >{{ f.label }}</button>
+          </div>
+
+          <!-- 任务列表 -->
+          <ul v-if="filteredTodos.length" class="todo-list">
+            <li
+              v-for="t in filteredTodos"
+              :key="t.id"
+              :class="['todo-item', { completed: t.done }]"
+            >
+              <!-- 完成复选框 -->
+              <span
+                :class="['todo-check', { done: t.done }]"
+                @click="toggleTodo(t)"
+              >✓</span>
+
+              <!-- 任务文字（编辑模式显示输入框） -->
+              <input
+                v-if="editingTodoId===t.id"
+                v-model="editTodoText"
+                @keyup.enter="saveEditTodo(t)"
+                @keyup.escape="cancelEditTodo"
+                @blur="saveEditTodo(t)"
+                class="todo-text"
+                style="border:1px solid var(--primary); border-radius:6px; padding:4px 8px; outline:none; flex:1;"
+                ref="todoEditInput"
+              />
+              <span v-else class="todo-text">{{ t.text }}</span>
+
+              <!-- 编辑 / 删除按钮 -->
+              <div class="todo-actions">
+                <button class="btn-edit" @click="startEditTodo(t)">编辑</button>
+                <button class="btn-del" @click="deleteTodo(t.id)">删除</button>
+              </div>
+            </li>
+          </ul>
+
+          <!-- 空状态 -->
+          <div v-else class="todo-empty">
+            {{ todoFilterKey === 'all' ? '暂无待办，添加一条吧' : todoFilterKey === 'active' ? '没有未完成的任务 ✓' : '没有已完成的任务' }}
+          </div>
+
+          <!-- 底部统计 -->
+          <div v-if="data.todos.length" class="todo-footer">
+            <span class="todo-count">
+              剩余 <strong>{{ activeTodoCount }}</strong> 项待办
+            </span>
+            <button
+              class="btn-clear"
+              :disabled="completedTodoCount === 0"
+              @click="clearCompletedTodos"
+            >清除已完成 ({{ completedTodoCount }})</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 课程表 ==================== -->
+      <div v-if="currentPage==='schedule'">
+        <div class="schedule-toolbar">
+          <button class="btn btn-outline btn-sm" @click="prevWeek">&lt; 上一周</button>
+          <span class="schedule-week-label">{{ weekLabel }}</span>
+          <button class="btn btn-outline btn-sm" @click="nextWeek">下一周 &gt;</button>
+          <button class="btn btn-outline btn-sm" @click="goCurrentWeek">本周</button>
+        </div>
+        <div class="schedule-grid">
+          <!-- 表头：星期+日期 -->
+          <div class="schedule-corner"></div>
+          <div v-for="d in weekDays" :key="d.date" :class="['schedule-header', { today: d.isToday }]">
+            <div class="schedule-dow">{{ d.dayOfWeek }}</div>
+            <div class="schedule-date">{{ d.month }}/{{ d.day }}</div>
+          </div>
+          <!-- 时间块行 -->
+          <template v-for="block in timeBlocks" :key="block.label">
+            <div class="schedule-time">{{ block.label }}</div>
+            <div v-for="d in weekDays" :key="d.date" class="schedule-cell" @click="addCourseFromSchedule(d.date)">
+              <div v-for="c in getCoursesByDateBlock(d.date, block)" :key="c.id"
+                class="schedule-course" :class="'course-'+c.type"
+                @click.stop="editCourse(c)">
+                <span class="course-time">{{ c.time }}</span>
+                <span class="course-student">{{ c.studentName }}</span>
+                <span class="course-type-tag">{{ getCourseTypeLabel(c.type) }}</span>
+              </div>
+              <div v-if="getCoursesByDateBlock(d.date, block).length===0" class="schedule-empty">+ 添加</div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ==================== 学生管理 ==================== -->
+      <div v-if="currentPage==='students'">
+        <!-- 子标签页 -->
+        <div class="btn-group" style="margin-bottom:16px;">
+          <button :class="['btn', studentTab==='roster' ? 'btn-primary' : 'btn-outline']" @click="studentTab='roster'">花名册</button>
+          <button :class="['btn', studentTab==='progress' ? 'btn-primary' : 'btn-outline']" @click="studentTab='progress'">学习进度</button>
+        </div>
+
+        <!-- 花名册 -->
+        <div v-if="studentTab==='roster'">
+          <div class="toolbar">
+            <input type="text" v-model="rosterSearch" placeholder="搜索姓名 / 学号...">
+            <select v-model="rosterGenderFilter">
+              <option value="">全部性别</option><option value="男">男</option><option value="女">女</option>
+            </select>
+            <select v-model="rosterSort">
+              <option value="id">按学号排序</option><option value="name">按姓名排序</option>
+            </select>
+            <button class="btn btn-outline btn-sm" @click="viewMode = viewMode==='table' ? 'card' : 'table'">
+              {{ viewMode==='table' ? '卡片视图' : '表格视图' }}
+            </button>
+            <button class="btn btn-primary btn-sm" @click="openRosterAdd">+ 新增学生</button>
+          </div>
+
+          <!-- 表格视图 -->
+          <div v-if="viewMode==='table'" class="card" style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>学号</th><th>姓名</th><th>性别</th><th>出生日期</th>
+                  <th>家长姓名</th><th>联系电话</th><th>家庭住址</th><th>备注</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in filteredRoster" :key="s.id">
+                  <td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.gender }}</td><td>{{ s.birth }}</td>
+                  <td>{{ s.parent }}</td><td>{{ s.phone }}</td><td>{{ s.address }}</td><td>{{ s.note }}</td>
+                  <td>
+                    <button class="btn btn-outline btn-sm" @click="openRosterEdit(s)">编辑</button>
+                    <button class="btn btn-danger btn-sm" @click="deleteRoster(s.id)">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="filteredRoster.length===0" style="text-align:center;padding:30px;color:var(--text-light);">暂无数据</div>
+          </div>
+
+          <!-- 卡片视图 -->
+          <div v-if="viewMode==='card'" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:14px;">
+            <div class="card" v-for="s in filteredRoster" :key="s.id">
+              <div style="display:flex;justify-content:space-between;align-items:start;">
+                <div>
+                  <strong>{{ s.name }}</strong>
+                  <span style="font-size:12px;color:var(--text-light);margin-left:8px;">{{ s.id }}</span>
+                </div>
+                <span style="font-size:12px;color:var(--text-light);">{{ s.gender }}</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-light);margin-top:6px;">
+                <div>出生：{{ s.birth }}</div>
+                <div>家长：{{ s.parent }} · {{ s.phone }}</div>
+                <div>地址：{{ s.address }}</div>
+                <div v-if="s.note">备注：{{ s.note }}</div>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:6px;">
+                <button class="btn btn-outline btn-sm" @click="openRosterEdit(s)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="deleteRoster(s.id)">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 学习进度 -->
+        <div v-if="studentTab==='progress'">
+          <div style="margin-bottom:14px;">
+            <button class="btn btn-primary btn-sm" @click="openProgressAdd">+ 新增进度记录</button>
+          </div>
+          <div class="subject-cards">
+            <div class="card subject-card" v-for="subj in subjects" :key="subj">
+              <div class="subject-header">
+                <span class="subject-name">{{ subj }}</span>
+                <span class="subject-count">{{ getSubjectStudentCount(subj) }} 人</span>
+              </div>
+              <div class="level-group" v-for="lv in getSubjectLevels(subj)" :key="lv">
+                <div class="level-title">{{ lv }}</div>
+                <div class="level-students">
+                  <span v-for="(p, i) in getProgressBySubjectLevel(subj, lv)" :key="p.id">
+                    <a href="#" class="student-link" @click.prevent="openStudentDetail(p.studentName)">{{ p.studentName }}</a> {{ p.age }}岁<span v-if="i < getProgressBySubjectLevel(subj, lv).length - 1">、</span>
+                  </span>
+                  <span v-if="getProgressBySubjectLevel(subj, lv).length===0" style="color:var(--text-light);">—</span>
+                </div>
+              </div>
+              <div style="margin-top:6px;">
+                <button class="btn btn-outline btn-sm" @click="openProgressEditForSubject(subj)">编辑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 提成管理 ==================== -->
+      <div v-if="currentPage==='commission'">
+        <!-- 月份选择器 -->
+        <div class="toolbar">
+          <span style="font-weight:600;">📅 查看月份</span>
+          <button class="btn btn-outline btn-sm" @click="prevCommissionMonth">&larr;</button>
+          <span style="font-weight:600;min-width:80px;text-align:center;">{{ commissionMonthLabel }}</span>
+          <button class="btn btn-outline btn-sm" @click="nextCommissionMonth">&rarr;</button>
+          <button class="btn btn-outline btn-sm" @click="goCurrentCommissionMonth">本月</button>
+        </div>
+
+        <!-- 体验课提成 -->
+        <div style="margin-bottom:24px;">
+          <div class="section-title">体验课提成</div>
+          <div class="commission-cards">
+            <div class="card" @click="openCommissionDetail('trial','month')" style="cursor:pointer;">
+              <div class="card-label">按月汇总</div>
+              <div class="card-amount">¥{{ trialMonthTotal }}</div>
+              <div class="card-sub">{{ trialMonthRecords.length }} 条记录 / {{ commissionMonthLabel }}</div>
+            </div>
+            <div class="card" @click="openCommissionDetail('trial','all')" style="cursor:pointer;">
+              <div class="card-label">全部汇总</div>
+              <div class="card-amount">¥{{ trialAllTotal }}</div>
+              <div class="card-sub">{{ data.trialCommissions.length }} 条累计记录</div>
+            </div>
+          </div>
+          <div class="commission-actions" style="margin-top:8px;">
+            <button @click="openCommissionEdit('trial')">+ 新增体验课提成</button>
+          </div>
+        </div>
+
+        <!-- 新招或续费提成 -->
+        <div style="margin-bottom:24px;">
+          <div class="section-title">新招 / 续费提成</div>
+          <div class="commission-cards">
+            <div class="card" @click="openCommissionDetail('enrollment','month')" style="cursor:pointer;">
+              <div class="card-label">按月汇总</div>
+              <div class="card-amount">¥{{ enrollmentMonthTotal }}</div>
+              <div class="card-sub">{{ enrollmentMonthRecords.length }} 条记录 / {{ commissionMonthLabel }}</div>
+            </div>
+            <div class="card" @click="openCommissionDetail('enrollment','all')" style="cursor:pointer;">
+              <div class="card-label">全部汇总</div>
+              <div class="card-amount">¥{{ enrollmentAllTotal }}</div>
+              <div class="card-sub">{{ data.enrollmentCommissions.length }} 条累计记录</div>
+            </div>
+          </div>
+          <div class="commission-actions" style="margin-top:8px;">
+            <button @click="openCommissionEdit('enrollment')">+ 新增招 / 续费提成</button>
+          </div>
+        </div>
+
+        <!-- 提成汇总 -->
+        <div style="margin-bottom:24px;">
+          <div class="section-title">提成汇总</div>
+          <div class="commission-cards">
+            <div class="card" @click="openCommissionDetail('all','all')" style="cursor:pointer;">
+              <div class="card-label">全部汇总</div>
+              <div class="card-amount">¥{{ allCommissionTotal }}</div>
+              <div class="card-sub">{{ allCommissionRecords.length }} 条累计记录</div>
+            </div>
+            <div class="card" @click="openCommissionDetail('all','month')" style="cursor:pointer;">
+              <div class="card-label">按月汇总</div>
+              <div class="card-amount">¥{{ allCommissionMonthTotal }}</div>
+              <div class="card-sub">{{ allCommissionMonthRecords.length }} 条记录 / {{ commissionMonthLabel }}</div>
+            </div>
+            <div class="card commission-card chart-card" @click="openCommissionDetail('all','month')">
+              <canvas ref="commissionChartRef" class="canvas-bar-chart"></canvas>
+            </div>
+          </div>
+          <div class="commission-actions" style="margin-top:8px;">
+            <button @click="openCommissionEdit('all')">+ 新增提成记录</button>
+          </div>
+        </div>
+
+        <!-- 详情弹窗 -->
+        <div class="modal-overlay" v-if="commDetail.show" @click.self="commDetail.show=false">
+          <div class="modal">
+            <div class="modal-header">
+              <h3>{{ commDetail.title }}</h3>
+              <button class="modal-close" @click="commDetail.show=false">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:50vh;overflow-y:auto;">
+              <table class="commission-detail-table" v-if="commDetail.records.length">
+                <thead>
+                  <tr>
+                    <th>月份</th><th>学生姓名</th><th>课包金额</th><th>提成金额</th><th>类别</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in commDetail.records" :key="r.id">
+                    <td>{{ r.month }}</td>
+                    <td>{{ r.studentName }}</td>
+                    <td>¥{{ r.packageAmount }}</td>
+                    <td>¥{{ r.commissionAmount }}</td>
+                    <td>{{ r.type==='trial'?'体验课':'招/续费' }}</td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" @click="editCommissionFromDetail(r)">编辑</button>
+                      <button class="btn btn-danger btn-sm" @click="deleteCommission(r.id)">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-else style="text-align:center;color:var(--text-secondary);padding:24px;">暂无提成记录</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 编辑弹窗 -->
+        <div class="modal-overlay" v-if="commEdit.show" @click.self="commEdit.show=false">
+          <div class="modal">
+            <div class="modal-header">
+              <h3>{{ commEdit.id ? '编辑提成' : '新增提成' }}</h3>
+              <button class="modal-close" @click="commEdit.show=false">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-group" v-if="commEdit.type==='all'">
+                <label>提成类别</label>
+                <select v-model="commEdit.recordType" class="input">
+                  <option value="trial">体验课提成</option>
+                  <option value="enrollment">新招 / 续费提成</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>月份</label>
+                <input type="month" v-model="commEdit.month" class="input" />
+              </div>
+              <div class="form-group">
+                <label>学生姓名</label>
+                <input type="text" v-model="commEdit.studentName" class="input" placeholder="请输入学生姓名" />
+              </div>
+              <div class="form-group">
+                <label>课包金额</label>
+                <input type="number" v-model.number="commEdit.packageAmount" class="input" placeholder="0" min="0" />
+              </div>
+              <div class="form-group">
+                <label>提成金额</label>
+                <input type="number" v-model.number="commEdit.commissionAmount" class="input" placeholder="0" min="0" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline" @click="commEdit.show=false">取消</button>
+              <button class="btn btn-primary" @click="saveCommission">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗：课程详情 ==================== -->
+  <div class="modal-overlay" v-if="modalCourse" @click.self="modalCourse=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ modalCourse.label }} - {{ courseViewDateLabel }}</h3>
+        <button class="modal-close" @click="modalCourse=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div v-if="getCoursesByViewDate(modalCourse.key).length===0" style="text-align:center;padding:30px;color:var(--text-light);">该日期暂无课程</div>
+        <table v-else>
+          <thead><tr><th>学员姓名</th><th>上课时间</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="c in getCoursesByViewDate(modalCourse.key)" :key="c.id">
+              <td>{{ c.studentName }}</td>
+              <td>{{ c.time }}</td>
+              <td>
+                <button class="btn btn-outline btn-sm" @click="editCourse(c)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="deleteCourse(c.id)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary btn-sm" @click="addCourse(modalCourse.key)">+ 新增课时</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：课时编辑 -->
+  <div class="modal-overlay" v-if="modalCourseEdit" @click.self="modalCourseEdit=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ editingCourse.id ? '编辑课时' : '新增课时' }}</h3>
+        <button class="modal-close" @click="modalCourseEdit=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>学员姓名</label><input v-model="editingCourse.studentName"></div>
+        <div class="form-group"><label>上课时间（如 14:00-15:30）</label><input v-model="editingCourse.time"></div>
+        <div class="form-group"><label>课程类型</label>
+          <select v-model="editingCourse.type">
+            <option v-for="c in courseTypes" :key="c.key" :value="c.key">{{ c.label }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" @click="modalCourseEdit=null">取消</button>
+        <button class="btn btn-primary" @click="saveCourse">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：餐补详情 -->
+  <div class="modal-overlay" v-if="modalMeal" @click.self="modalMeal=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>餐补记录（{{ reimburseMonthLabel }}）</h3>
+        <button class="modal-close" @click="modalMeal=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table>
+          <thead><tr><th>日期</th><th>餐费金额</th><th>月份</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="m in mealsByViewMonth" :key="m.id">
+              <td>{{ m.date }}</td><td>¥{{ m.amount }}</td><td>{{ m.month }}月</td>
+              <td>
+                <button class="btn btn-outline btn-sm" @click="editMeal(m)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="deleteMeal(m.id)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" @click="addMeal">+ 新增记录</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：餐补编辑 -->
+  <div class="modal-overlay" v-if="modalMealEdit" @click.self="modalMealEdit=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ editingMeal.id ? '编辑餐补' : '新增餐补' }}</h3>
+        <button class="modal-close" @click="modalMealEdit=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>日期</label><input type="date" v-model="editingMeal.date"></div>
+        <div class="form-group"><label>餐费金额</label><input type="number" v-model.number="editingMeal.amount"></div>
+        <div class="form-group"><label>月份</label><input type="number" v-model.number="editingMeal.month" min="1" max="12"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" @click="modalMealEdit=null">取消</button>
+        <button class="btn btn-primary" @click="saveMeal">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：报销详情 -->
+  <div class="modal-overlay" v-if="modalReimburse" @click.self="modalReimburse=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>报销记录</h3>
+        <button class="modal-close" @click="modalReimburse=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table>
+          <thead><tr><th>类别</th><th>金额</th><th>日期</th><th>状态</th><th>证明</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="r in reimbursementsByViewMonth" :key="r.id">
+              <td>{{ r.category }}</td><td>¥{{ r.amount }}</td><td>{{ r.date }}</td>
+              <td><span :style="{color: r.status==='已审批' ? 'var(--primary)' : '#e08b5a'}">{{ r.status }}</span></td>
+              <td><span v-if="r.proof" style="font-size:12px;color:var(--secondary);">已上传</span><span v-else style="color:var(--text-light);">无</span></td>
+              <td>
+                <button class="btn btn-outline btn-sm" @click="editReimburse(r)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="deleteReimburse(r.id)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary btn-sm" @click="addReimburse">+ 新增报销</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：报销编辑 -->
+  <div class="modal-overlay" v-if="modalReimburseEdit" @click.self="modalReimburseEdit=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ editingReimburse.id ? '编辑报销' : '新增报销' }}</h3>
+        <button class="modal-close" @click="modalReimburseEdit=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>报销类别</label><select v-model="editingReimburse.category"><option>教材</option><option>教具</option><option>交通</option></select></div>
+        <div class="form-group"><label>金额</label><input type="number" v-model.number="editingReimburse.amount"></div>
+        <div class="form-group"><label>日期</label><input type="date" v-model="editingReimburse.date"></div>
+        <div class="form-group"><label>审批状态</label><select v-model="editingReimburse.status"><option>待审批</option><option>已审批</option></select></div>
+        <div class="form-group"><label>证明截图说明</label><input v-model="editingReimburse.proof" placeholder="截图文件名或链接"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" @click="modalReimburseEdit=null">取消</button>
+        <button class="btn btn-primary" @click="saveReimburse">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：花名册编辑 -->
+  <div class="modal-overlay" v-if="modalRosterEdit" @click.self="modalRosterEdit=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ editingRoster.id ? '编辑学生' : '新增学生' }}</h3>
+        <button class="modal-close" @click="modalRosterEdit=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>学号</label><input v-model="editingRoster.id"></div>
+          <div class="form-group"><label>姓名</label><input v-model="editingRoster.name"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>性别</label><select v-model="editingRoster.gender"><option>男</option><option>女</option></select></div>
+          <div class="form-group"><label>出生日期</label><input type="date" v-model="editingRoster.birth"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>家长姓名</label><input v-model="editingRoster.parent"></div>
+          <div class="form-group"><label>联系电话</label><input v-model="editingRoster.phone"></div>
+        </div>
+        <div class="form-group"><label>家庭住址</label><input v-model="editingRoster.address"></div>
+        <div class="form-group"><label>备注</label><input v-model="editingRoster.note"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" @click="modalRosterEdit=null">取消</button>
+        <button class="btn btn-primary" @click="saveRoster">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：学习进度编辑（按学科） -->
+  <div class="modal-overlay" v-if="modalProgress" @click.self="modalProgress=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ progressSubject }} - 学员进度</h3>
+        <button class="modal-close" @click="modalProgress=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table>
+          <thead><tr><th>学员姓名</th><th>年龄</th><th>等级</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="p in getSubjectProgress(progressSubject)" :key="p.id">
+              <td>{{ p.studentName }}</td><td>{{ p.age }}岁</td><td>{{ p.level }}</td>
+              <td>
+                <button class="btn btn-outline btn-sm" @click="editProgress(p)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="deleteProgress(p.id)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary btn-sm" @click="addProgressForSubject">+ 新增</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：学员详情 -->
+  <div class="modal-overlay" v-if="modalStudentDetail" @click.self="modalStudentDetail=false">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>学员详情</h3>
+        <button class="modal-close" @click="modalStudentDetail=false">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div v-if="studentDetailData" style="margin-bottom:16px;font-size:14px;">
+          <strong>{{ studentDetailData.name }}</strong> <span style="color:var(--text-light);">{{ studentDetailData.age }}岁</span>
+        </div>
+        <div v-if="studentDetailData && studentDetailData.subjects.length===0" style="text-align:center;padding:20px;color:var(--text-light);">该学员暂无课程记录</div>
+        <div v-else>
+          <div v-for="subj in studentDetailData.subjects" :key="subj.subject" style="margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:4px;">{{ subj.subject }}</div>
+            <div style="font-size:13px;color:var(--text);line-height:2;">
+              【<span v-for="(c, i) in subj.courses" :key="i" style="white-space:nowrap;">{{ c }}<button class="course-del-btn" @click="deleteStudentCourse(detailStudentName, subj.subject, i)" title="删除课程">&times;</button><span v-if="i < subj.courses.length - 1">、</span></span>】
+            </div>
+            <div class="course-add-row">
+              <input v-model="newCourseInputs[subj.subject]" placeholder="输入课程名称" @keyup.enter="addStudentCourse(detailStudentName, subj.subject)">
+              <button class="btn btn-outline btn-sm" @click="addStudentCourse(detailStudentName, subj.subject)">添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：学习进度编辑单项 -->
+  <div class="modal-overlay" v-if="modalProgressEdit" @click.self="modalProgressEdit=null">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ editingProgress.id ? '编辑进度' : '新增进度' }}</h3>
+        <button class="modal-close" @click="modalProgressEdit=null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>学员姓名</label><input v-model="editingProgress.studentName"></div>
+        <div class="form-group"><label>年龄</label><input type="number" v-model.number="editingProgress.age"></div>
+        <div class="form-group"><label>学科</label><select v-model="editingProgress.subject"><option v-for="s in subjects" :key="s" :value="s">{{ s }}</option></select></div>
+        <div class="form-group"><label>等级</label><input v-model="editingProgress.level" placeholder="如：一级、二级"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" @click="modalProgressEdit=null">取消</button>
+        <button class="btn btn-primary" @click="saveProgress">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：本月统计详情 -->
+  <div class="modal-overlay" v-if="modalMonthStats" @click.self="modalMonthStats=false">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>{{ statsMonthLabel }} · 上课学员详情</h3>
+        <button class="modal-close" @click="modalMonthStats=false">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text-light);">{{ monthlyStatsSummary }}</div>
+        <div v-if="monthlyStudentDetails.length===0" style="text-align:center;padding:30px;color:var(--text-light);">该月暂无课时记录</div>
+        <div v-else>
+          <div v-for="stu in monthlyStudentDetails" :key="stu.name" class="card" style="margin-bottom:10px;padding:12px 16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong>{{ stu.name }}</strong>
+              <span style="font-size:12px;color:var(--text-light);">{{ stu.courses.length }} 节课</span>
+            </div>
+            <table style="font-size:12px;">
+              <thead><tr><th>日期</th><th>上课时间</th><th>课程类型</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-for="c in stu.courses" :key="c.id">
+                  <td>{{ c.date }}</td>
+                  <td>{{ c.time }}</td>
+                  <td><span class="course-type-tag" style="font-size:11px;">{{ getCourseTypeLabel(c.type) }}</span></td>
+                  <td>
+                    <button class="btn btn-outline btn-sm" @click="editCourse(c)">编辑</button>
+                    <button class="btn btn-danger btn-sm" @click="deleteCourse(c.id)">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary btn-sm" @click="addCourseFromMonthStats">+ 新增课时</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</script>
+
+<script>
+const { createApp, ref, computed, watch, onMounted } = Vue;
+
+const STORAGE_KEY = 'teacher_workbench_data_v2';
+const DATA_FILE_NAME = 'teacher-workbench-data.json';
+
+/* ===== Supabase 客户端初始化 ===== */
+const supabaseClient = window.supabase.createClient(
+  'https://yqwohebgkihihnvhsdyl.supabase.co',
+  'sb_publishable_1qu8shsDsmeEeXLo1PugqA_2XI2VKZy'
+);
+
+/* ===== IndexedDB：持久化文件句柄 ===== */
+const DB_NAME = 'TeacherWorkbenchDB';
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e) => { e.target.result.createObjectStore('handles'); };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function storeFileHandle(handle) {
+  const db = await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(handle, 'dataFile');
+    tx.oncomplete = () => resolve();
+  });
+}
+async function getStoredFileHandle() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('handles', 'readonly');
+      const req = tx.objectStore('handles').get('dataFile');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch(e) { return null; }
+}
+
+/* ===== 数据加载（Supabase 优先 → localStorage 兜底 → 文件兜底） ===== */
+async function loadData() {
+  const defaults = {
+    courses: [], meals: [], reimbursements: [], roster: [], progresses: [], todos: [],
+    trialCommissions: [], enrollmentCommissions: []
+  };
+
+  // 1. 优先从 Supabase 加载
+  let supabaseData = null;
+  try {
+    const { data: row, error } = await supabaseClient
+      .from('workbench_data')
+      .select('data')
+      .eq('id', 'default')
+      .single();
+    if (!error && row && row.data) {
+      supabaseData = row.data;
+      for (const key of Object.keys(defaults)) {
+        if (!(key in supabaseData)) supabaseData[key] = defaults[key];
+      }
+    }
+  } catch(e) { /* Supabase 不可用，继续回退 */ }
+
+  // 2. 从 localStorage 读取
+  let localData = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      localData = JSON.parse(raw);
+      for (const key of Object.keys(defaults)) {
+        if (!(key in localData)) localData[key] = defaults[key];
+      }
+    }
+  } catch(e) {}
+
+  // 3. 数据合并：使用较新数据（基于 _updatedAt 时间戳）
+  let result = null;
+  if (supabaseData && localData) {
+    const supabaseTime = supabaseData._updatedAt || 0;
+    const localTime = localData._updatedAt || 0;
+    result = supabaseTime >= localTime ? supabaseData : localData;
+  } else if (supabaseData) {
+    result = supabaseData;
+  } else if (localData) {
+    result = localData;
+  }
+
+  if (result) {
+    // 同步到 localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+    return { data: result, fromFile: false };
+  }
+
+  // 4. 文件兜底
+  const handle = await getStoredFileHandle();
+  if (handle) {
+    try {
+      const perm = await handle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') {
+        const req = await handle.requestPermission({ mode: 'readwrite' });
+        if (req !== 'granted') throw new Error('无权限');
+      }
+      const file = await handle.getFile();
+      const parsed = JSON.parse(await file.text());
+      for (const key of Object.keys(defaults)) {
+        if (!(key in parsed)) parsed[key] = defaults[key];
+      }
+      // 同步到 localStorage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      return { data: parsed, fromFile: true };
+    } catch(e) { /* 文件读取失败 → 回退默认值 */ }
+  }
+
+  return { data: defaults, fromFile: false };
+}
+
+/* ===== 数据保存（localStorage + Supabase + 文件三写） ===== */
+async function saveDataToFile(data) {
+  // 添加更新时间戳
+  data._updatedAt = Date.now();
+  // 写入 localStorage（离线兜底）
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // 异步写入 Supabase（不阻塞 UI）
+  try {
+    await supabaseClient.from('workbench_data').upsert({ id: 'default', data: data });
+  } catch(e) { /* Supabase 不可用时静默失败 */ }
+  // 文件写入（保留原有逻辑）
+  const handle = await getStoredFileHandle();
+  if (handle) {
+    try {
+      const perm = await handle.queryPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        const writable = await handle.createWritable();
+        await writable.write(JSON.stringify(data, null, 2));
+        await writable.close();
+      }
+    } catch(e) { /* 静默失败，localStorage 已有数据 */ }
+  }
+}
+
+/* ===== 设置数据文件（用户手动触发） ===== */
+async function setupDataFile(dataObj) {
+  if (!window.showSaveFilePicker) {
+    alert('当前浏览器不支持文件系统 API，请使用 Chrome 或 Edge');
+    return false;
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: DATA_FILE_NAME,
+      types: [{ description: 'JSON 数据文件', accept: { 'application/json': ['.json'] } }]
+    });
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify(dataObj, null, 2));
+    await writable.close();
+    await storeFileHandle(handle);
+    return true;
+  } catch(e) {
+    if (e.name !== 'AbortError') alert('设置失败：' + e.message);
+    return false;
+  }
+}
+
+createApp({
+  template: '#app-tpl',
+  setup() {
+    const data = ref({
+      courses: [], meals: [], reimbursements: [], roster: [], progresses: [], todos: [],
+      trialCommissions: [], enrollmentCommissions: []
+    });
+    const dataFromFile = ref(false);  // 是否从 JSON 文件加载
+    const sidebarCollapsed = ref(false);
+    const currentPage = ref('ledger');
+    const studentTab = ref('roster');
+    const viewMode = ref('table');
+
+    // 花名册筛选
+    const rosterSearch = ref('');
+    const rosterGenderFilter = ref('');
+    const rosterSort = ref('id');
+
+    // 弹窗状态
+    const modalCourse = ref(null);
+    const modalCourseEdit = ref(false);
+    const editingCourse = ref({});
+    const modalMeal = ref(false);
+    const modalMealEdit = ref(false);
+    const editingMeal = ref({});
+    const modalReimburse = ref(false);
+    const modalReimburseEdit = ref(false);
+    const editingReimburse = ref({});
+    const modalRosterEdit = ref(false);
+    const editingRoster = ref({});
+    const modalProgress = ref(false);
+    const progressSubject = ref('');
+    const modalProgressEdit = ref(false);
+    const editingProgress = ref({});
+    const modalStudentDetail = ref(false);
+    const detailStudentName = ref('');
+
+    const navItems = [
+      { key:'ledger', label:'记账台', icon:'📋' },
+      { key:'todo', label:'Todo清单', icon:'✅' },
+      { key:'schedule', label:'课程表', icon:'📅' },
+      { key:'students', label:'学生管理', icon:'👥' },
+      { key:'commission', label:'提成管理', icon:'💰' },
+    ];
+
+    const courseTypes = [
+      { key:'member', label:'会员课时', icon:'📚' },
+      { key:'contest', label:'比赛集训', icon:'🏆' },
+      { key:'holiday', label:'假期班', icon:'🌴' },
+      { key:'outing', label:'外派研学', icon:'🚌' },
+    ];
+
+    const subjects = ['小颗粒','Wedo','EV3','Arduino','Scratch','Python','C++'];
+
+    // 课程表
+    const timeBlocks = [
+      { label:'08:00-10:00', start:8, end:10 },
+      { label:'10:00-12:00', start:10, end:12 },
+      { label:'14:00-16:00', start:14, end:16 },
+      { label:'16:00-18:00', start:16, end:18 },
+    ];
+    const scheduleWeekStart = ref(getMonday(new Date()));
+
+    function todayDateStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    const courseViewDate = ref(todayDateStr());
+
+    function getMonday(d) {
+      const dt = new Date(d);
+      const day = dt.getDay();
+      const diff = day===0 ? -6 : 1-day;
+      dt.setDate(dt.getDate()+diff);
+      return dt;
+    }
+
+    const weekDays = computed(() => {
+      const days = ['周一','周二','周三','周四','周五','周六','周日'];
+      const today = new Date();
+      const todayStr2 = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      const arr = [];
+      for (let i=0; i<7; i++) {
+        const d = new Date(scheduleWeekStart.value);
+        d.setDate(d.getDate()+i);
+        const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        arr.push({ date:ds, dayOfWeek:days[i], month:d.getMonth()+1, day:d.getDate(), isToday:ds===todayStr2 });
+      }
+      return arr;
+    });
+
+    const weekLabel = computed(() => {
+      const s = weekDays.value[0], e = weekDays.value[6];
+      return `${s.month}月${s.day}日 - ${e.month}月${e.day}日`;
+    });
+
+    function getCoursesByDate(date) {
+      return data.value.courses.filter(c => c.date===date);
+    }
+
+    function parseTimeHour(timeStr) {
+      const m = timeStr.match(/^(\d{1,2}):/);
+      return m ? parseInt(m[1]) : 0;
+    }
+
+    function getCoursesByDateBlock(date, block) {
+      return getCoursesByDate(date).filter(c => {
+        const h = parseTimeHour(c.time);
+        return h >= block.start && h < block.end;
+      });
+    }
+
+    function getCourseTypeLabel(type) {
+      const m = { member:'会员', contest:'集训', holiday:'假期', outing:'研学' };
+      return m[type] || type;
+    }
+
+    function prevWeek() {
+      const d = new Date(scheduleWeekStart.value);
+      d.setDate(d.getDate()-7);
+      scheduleWeekStart.value = d;
+    }
+    function nextWeek() {
+      const d = new Date(scheduleWeekStart.value);
+      d.setDate(d.getDate()+7);
+      scheduleWeekStart.value = d;
+    }
+    function goCurrentWeek() {
+      scheduleWeekStart.value = getMonday(new Date());
+    }
+
+    function addCourseFromSchedule(date) {
+      editingCourse.value = { id:'', studentName:'', time:'', type:'member', date };
+      modalCourseEdit.value = true;
+    }
+
+    // 本月统计
+    const statsYear = ref(new Date().getFullYear());
+    const statsMonthNum = ref(new Date().getMonth() + 1);
+    const statsMonthLabel = computed(() => `${statsYear.value}年${statsMonthNum.value}月`);
+    const modalMonthStats = ref(false);
+
+    const monthlyCoursesForStats = computed(() => {
+      return data.value.courses.filter(c => {
+        const [y, m] = c.date.split('-').map(Number);
+        return y === statsYear.value && m === statsMonthNum.value;
+      });
+    });
+
+    const monthlyStudentDetails = computed(() => {
+      const map = {};
+      monthlyCoursesForStats.value.forEach(c => {
+        if (!map[c.studentName]) map[c.studentName] = [];
+        map[c.studentName].push(c);
+      });
+      return Object.entries(map).map(([name, courses]) => ({ name, courses }));
+    });
+
+    const monthlyStudentCount = computed(() => monthlyStudentDetails.value.length);
+    const monthlyStatsSummary = computed(() => {
+      const total = monthlyCoursesForStats.value.length;
+      const students = monthlyStudentCount.value;
+      return `共 ${students} 名学员，${total} 节课时`;
+    });
+
+    function prevStatsMonth() {
+      if (statsMonthNum.value === 1) {
+        statsMonthNum.value = 12;
+        statsYear.value--;
+      } else {
+        statsMonthNum.value--;
+      }
+    }
+    function nextStatsMonth() {
+      if (statsMonthNum.value === 12) {
+        statsMonthNum.value = 1;
+        statsYear.value++;
+      } else {
+        statsMonthNum.value++;
+      }
+    }
+    function goCurrentStatsMonth() {
+      statsYear.value = new Date().getFullYear();
+      statsMonthNum.value = new Date().getMonth() + 1;
+    }
+    function openMonthStats() { modalMonthStats.value = true; }
+    function addCourseFromMonthStats() {
+      const m = String(statsMonthNum.value).padStart(2,'0');
+      editingCourse.value = { id:'', studentName:'', time:'', type:'member', date:`${statsYear.value}-${m}-01` };
+      modalCourseEdit.value = true;
+    }
+
+    const todayStr = computed(() => todayDateStr());
+    const weekdayStr = computed(() => {
+      const days = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+      return days[new Date().getDay()];
+    });
+    const currentMonth = computed(() => new Date().getMonth() + 1);
+    const currentNav = computed(() => navItems.find(n => n.key===currentPage.value) || navItems[0]);
+
+    const courseViewDateLabel = computed(() => {
+      const [y, m, d] = courseViewDate.value.split('-').map(Number);
+      const days = ['周日','周一','周二','周三','周四','周五','周六'];
+      const dt = new Date(y, m-1, d);
+      const today = todayStr.value;
+      if (courseViewDate.value === today) return '今天';
+      const yesterday = new Date(new Date(today).getTime() - 86400000);
+      const ystr = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+      if (courseViewDate.value === ystr) return '昨天';
+      return `${m}月${d}日 ${days[dt.getDay()]}`;
+    });
+
+    function fmtDate(d) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function prevCourseViewDate() {
+      const d = new Date(courseViewDate.value);
+      d.setDate(d.getDate()-1);
+      courseViewDate.value = fmtDate(d);
+    }
+    function nextCourseViewDate() {
+      const d = new Date(courseViewDate.value);
+      d.setDate(d.getDate()+1);
+      courseViewDate.value = fmtDate(d);
+    }
+    function goTodayCourseView() {
+      courseViewDate.value = todayDateStr();
+    }
+
+    // 课时相关
+    const getCoursesByViewDate = (type) => {
+      return data.value.courses.filter(c => c.type===type && c.date===courseViewDate.value);
+    };
+    const getCourseCountByDate = (type) => getCoursesByViewDate(type).length;
+
+    const openCourseDetail = (c) => { modalCourse.value = c; };
+    const addCourse = (type) => {
+      editingCourse.value = { id:'', studentName:'', time:'', type, date: courseViewDate.value };
+      modalCourseEdit.value = true;
+    };
+    const editCourse = (c) => {
+      editingCourse.value = { ...c };
+      modalCourseEdit.value = true;
+    };
+    const saveCourse = () => {
+      const c = editingCourse.value;
+      if (!c.studentName || !c.time) return;
+      if (c.id) {
+        const idx = data.value.courses.findIndex(x => x.id===c.id);
+        if (idx>=0) data.value.courses[idx] = { ...c };
+      } else {
+        c.id = 'c_' + Date.now();
+        data.value.courses.push({ ...c });
+      }
+      saveDataToFile(data.value);
+      modalCourseEdit.value = false;
+    };
+    const deleteCourse = (id) => {
+      data.value.courses = data.value.courses.filter(c => c.id!==id);
+      saveDataToFile(data.value);
+    };
+
+    // 餐补与报销往期查看
+    const reimburseViewYear = ref(new Date().getFullYear());
+    const reimburseViewMonthNum = ref(new Date().getMonth() + 1);
+    const reimburseMonthLabel = computed(() => `${reimburseViewYear.value}年${reimburseViewMonthNum.value}月`);
+
+    function prevReimburseMonth() {
+      if (reimburseViewMonthNum.value === 1) {
+        reimburseViewMonthNum.value = 12;
+        reimburseViewYear.value--;
+      } else {
+        reimburseViewMonthNum.value--;
+      }
+    }
+    function nextReimburseMonth() {
+      if (reimburseViewMonthNum.value === 12) {
+        reimburseViewMonthNum.value = 1;
+        reimburseViewYear.value++;
+      } else {
+        reimburseViewMonthNum.value++;
+      }
+    }
+    function goCurrentReimburseMonth() {
+      reimburseViewYear.value = new Date().getFullYear();
+      reimburseViewMonthNum.value = new Date().getMonth() + 1;
+    }
+
+    // 餐补
+    const mealsByViewMonth = computed(() => data.value.meals.filter(m => m.month===reimburseViewMonthNum.value));
+    const mealViewMonthTotal = computed(() => mealsByViewMonth.value.reduce((s,m)=>s+(m.amount||0),0));
+
+    const openMealDetail = () => { modalMeal.value = true; };
+    const addMeal = () => {
+      editingMeal.value = { id:'', date:todayStr.value, amount:0, month:reimburseViewMonthNum.value };
+      modalMealEdit.value = true;
+    };
+    const editMeal = (m) => {
+      editingMeal.value = { ...m };
+      modalMealEdit.value = true;
+    };
+    const saveMeal = () => {
+      const m = editingMeal.value;
+      if (m.id) {
+        const idx = data.value.meals.findIndex(x => x.id===m.id);
+        if (idx>=0) data.value.meals[idx] = { ...m };
+      } else {
+        m.id = 'm_' + Date.now();
+        data.value.meals.push({ ...m });
+      }
+      saveDataToFile(data.value);
+      modalMealEdit.value = false;
+    };
+    const deleteMeal = (id) => {
+      data.value.meals = data.value.meals.filter(m => m.id!==id);
+      saveDataToFile(data.value);
+    };
+
+    // 报销
+    const reimbursementsByViewMonth = computed(() =>
+      data.value.reimbursements.filter(r => {
+        const m = parseInt(r.date.split('-')[1]);
+        return m === reimburseViewMonthNum.value;
+      })
+    );
+    const reimburseViewMonthTotal = computed(() => reimbursementsByViewMonth.value.reduce((s,r)=>s+(r.amount||0),0));
+
+    const openReimburseDetail = () => { modalReimburse.value = true; };
+    const addReimburse = () => {
+      editingReimburse.value = { id:'', category:'教材', amount:0, date:todayStr.value, status:'待审批', proof:'' };
+      modalReimburseEdit.value = true;
+    };
+    const editReimburse = (r) => {
+      editingReimburse.value = { ...r };
+      modalReimburseEdit.value = true;
+    };
+    const saveReimburse = () => {
+      const r = editingReimburse.value;
+      if (r.id) {
+        const idx = data.value.reimbursements.findIndex(x => x.id===r.id);
+        if (idx>=0) data.value.reimbursements[idx] = { ...r };
+      } else {
+        r.id = 'r_' + Date.now();
+        data.value.reimbursements.push({ ...r });
+      }
+      saveDataToFile(data.value);
+      modalReimburseEdit.value = false;
+    };
+    const deleteReimburse = (id) => {
+      data.value.reimbursements = data.value.reimbursements.filter(r => r.id!==id);
+      saveDataToFile(data.value);
+    };
+
+    // 花名册
+    const filteredRoster = computed(() => {
+      let list = [...data.value.roster];
+      const s = rosterSearch.value.toLowerCase();
+      if (s) list = list.filter(r => r.name.toLowerCase().includes(s) || r.id.toLowerCase().includes(s));
+      if (rosterGenderFilter.value) list = list.filter(r => r.gender===rosterGenderFilter.value);
+      if (rosterSort.value==='name') list.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
+      else list.sort((a,b)=>a.id.localeCompare(b.id));
+      return list;
+    });
+
+    const openRosterAdd = () => {
+      editingRoster.value = { id:'', name:'', gender:'男', birth:'', parent:'', phone:'', address:'', note:'' };
+      modalRosterEdit.value = true;
+    };
+    const openRosterEdit = (r) => {
+      editingRoster.value = { ...r };
+      modalRosterEdit.value = true;
+    };
+    const saveRoster = () => {
+      const r = editingRoster.value;
+      if (!r.name || !r.id) return;
+      const idx = data.value.roster.findIndex(x => x.id===r.id);
+      if (idx>=0) {
+        data.value.roster[idx] = { ...r };
+      } else {
+        data.value.roster.push({ ...r });
+      }
+      saveDataToFile(data.value);
+      modalRosterEdit.value = false;
+    };
+    const deleteRoster = (id) => {
+      data.value.roster = data.value.roster.filter(r => r.id!==id);
+      saveDataToFile(data.value);
+    };
+
+    // 学习进度
+    const getSubjectProgress = (subj) => data.value.progresses.filter(p => p.subject===subj);
+    const getSubjectLevels = (subj) => {
+      const levels = [...new Set(getSubjectProgress(subj).map(p => p.level))];
+      return levels.sort((a,b) => a.localeCompare(b, 'zh'));
+    };
+    const getProgressBySubjectLevel = (subj, lv) => getSubjectProgress(subj).filter(p => p.level===lv);
+    const getSubjectStudentCount = (subj) => getSubjectProgress(subj).length;
+
+    const openProgressEditForSubject = (subj) => {
+      progressSubject.value = subj;
+      modalProgress.value = true;
+    };
+    const openProgressAdd = () => {
+      editingProgress.value = { id:'', studentName:'', age:'', subject:subjects[0], level:'' };
+      modalProgressEdit.value = true;
+      progressSubject.value = '';
+    };
+    const addProgressForSubject = () => {
+      editingProgress.value = { id:'', studentName:'', age:'', subject:progressSubject.value, level:'' };
+      modalProgressEdit.value = true;
+    };
+    const editProgress = (p) => {
+      editingProgress.value = { ...p };
+      modalProgressEdit.value = true;
+    };
+    const saveProgress = () => {
+      const p = editingProgress.value;
+      if (!p.studentName) return;
+      if (p.id) {
+        const idx = data.value.progresses.findIndex(x => x.id===p.id);
+        if (idx>=0) data.value.progresses[idx] = { ...p };
+      } else {
+        p.id = 'p_' + Date.now();
+        data.value.progresses.push({ ...p });
+      }
+      saveDataToFile(data.value);
+      modalProgressEdit.value = false;
+    };
+    const deleteProgress = (id) => {
+      data.value.progresses = data.value.progresses.filter(p => p.id!==id);
+      saveDataToFile(data.value);
+    };
+
+    // 学员详情
+    const studentDetailData = computed(() => {
+      if (!detailStudentName.value) return null;
+      const records = data.value.progresses.filter(p => p.studentName === detailStudentName.value);
+      if (records.length === 0) return null;
+      const age = records[0].age;
+      const subjects = [];
+      const seenSubjects = new Set();
+      records.forEach(r => {
+        if (!seenSubjects.has(r.subject)) {
+          seenSubjects.add(r.subject);
+          subjects.push({ subject: r.subject, courses: r.courses || [] });
+        } else {
+          const existing = subjects.find(s => s.subject === r.subject);
+          if (existing && r.courses) {
+            r.courses.forEach(c => { if (!existing.courses.includes(c)) existing.courses.push(c); });
+          }
+        }
+      });
+      return { name: detailStudentName.value, age, subjects };
+    });
+    const openStudentDetail = (name) => {
+      detailStudentName.value = name;
+      modalStudentDetail.value = true;
+    };
+
+    // 学员详情：课程增删
+    const newCourseInputs = ref({});
+
+    const addStudentCourse = (studentName, subject) => {
+      const courseName = (newCourseInputs.value[subject] || '').trim();
+      if (!courseName) return;
+      const rec = data.value.progresses.find(p => p.studentName === studentName && p.subject === subject);
+      if (rec) {
+        if (!rec.courses) rec.courses = [];
+        if (!rec.courses.includes(courseName)) {
+          rec.courses.push(courseName);
+        }
+      } else {
+        const existing = data.value.progresses.find(p => p.studentName === studentName);
+        data.value.progresses.push({
+          id: 'p_' + Date.now(),
+          studentName,
+          age: existing ? existing.age : '',
+          subject,
+          level: '',
+          courses: [courseName]
+        });
+      }
+      newCourseInputs.value[subject] = '';
+      saveDataToFile(data.value);
+    };
+
+    const deleteStudentCourse = (studentName, subject, courseIndex) => {
+      const rec = data.value.progresses.find(p => p.studentName === studentName && p.subject === subject);
+      if (rec && rec.courses) {
+        rec.courses.splice(courseIndex, 1);
+        saveDataToFile(data.value);
+      }
+    };
+
+    // ===== Todo清单 =====
+    const todoInput = ref('');                // 输入框内容
+    const todoFilterKey = ref('all');        // 筛选键：all / active / completed
+    const editingTodoId = ref(null);          // 正在编辑的任务 id
+    const editTodoText = ref('');             // 编辑中的文本
+
+    // 筛选标签定义
+    const todoFilters = [
+      { key: 'all', label: '全部' },
+      { key: 'active', label: '未完成' },
+      { key: 'completed', label: '已完成' },
+    ];
+
+    // 今日日期文案
+    const todoDateLabel = computed(() => {
+      const d = new Date();
+      const days = ['日', '一', '二', '三', '四', '五', '六'];
+      return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 星期${days[d.getDay()]}`;
+    });
+
+    // 按筛选条件过滤任务
+    const filteredTodos = computed(() => {
+      if (todoFilterKey.value === 'active') return data.value.todos.filter(t => !t.done);
+      if (todoFilterKey.value === 'completed') return data.value.todos.filter(t => t.done);
+      return data.value.todos;
+    });
+
+    // 未完成数量
+    const activeTodoCount = computed(() => data.value.todos.filter(t => !t.done).length);
+    // 已完成数量
+    const completedTodoCount = computed(() => data.value.todos.filter(t => t.done).length);
+
+    // 添加任务：空输入拦截
+    const addTodo = () => {
+      const text = todoInput.value.trim();
+      if (!text) return;
+      data.value.todos.push({ id: 't_' + Date.now(), text, done: false });
+      saveDataToFile(data.value);
+      todoInput.value = '';
+    };
+
+    // 切换完成状态
+    const toggleTodo = (t) => {
+      t.done = !t.done;
+      saveDataToFile(data.value);
+    };
+
+    // 开始编辑
+    const startEditTodo = (t) => {
+      editingTodoId.value = t.id;
+      editTodoText.value = t.text;
+    };
+
+    // 保存编辑（空文本则删除）
+    const saveEditTodo = (t) => {
+      const text = editTodoText.value.trim();
+      if (!text) { deleteTodo(t.id); }  // 空内容视为删除
+      else { t.text = text; saveDataToFile(data.value); }
+      editingTodoId.value = null;
+    };
+
+    // 取消编辑
+    const cancelEditTodo = () => { editingTodoId.value = null; };
+
+    // 删除单条
+    const deleteTodo = (id) => {
+      data.value.todos = data.value.todos.filter(t => t.id !== id);
+      saveDataToFile(data.value);
+    };
+
+    // 清除所有已完成
+    const clearCompletedTodos = () => {
+      data.value.todos = data.value.todos.filter(t => !t.done);
+      saveDataToFile(data.value);
+    };
+
+    // 初始化演示数据
+    onMounted(async () => {
+      const loaded = await loadData();
+      data.value = loaded.data;
+      dataFromFile.value = loaded.fromFile;
+      if (data.value.roster.length===0 && data.value.courses.length===0) {
+        const today = todayStr.value;
+        data.value.roster = [
+          { id:'2024001', name:'张小明', gender:'男', birth:'2016-03-12', parent:'张伟', phone:'13800001111', address:'阳光花园3栋201', note:'' },
+          { id:'2024002', name:'李雨涵', gender:'女', birth:'2015-11-05', parent:'李强', phone:'13800002222', address:'翠竹苑5栋102', note:'Scratch一级在读' },
+          { id:'2024003', name:'王浩然', gender:'男', birth:'2016-07-20', parent:'王建国', phone:'13800003333', address:'碧水湾2栋501', note:'' },
+          { id:'2024004', name:'陈思琪', gender:'女', birth:'2015-04-18', parent:'陈明', phone:'13800004444', address:'锦绣花园1栋302', note:'Python二级' },
+        ];
+        data.value.courses = [
+          { id:'c1', type:'member', studentName:'张小明', time:'14:00-15:30', date:today },
+          { id:'c2', type:'member', studentName:'李雨涵', time:'14:00-15:30', date:today },
+          { id:'c3', type:'member', studentName:'王浩然', time:'16:00-17:30', date:today },
+          { id:'c4', type:'contest', studentName:'陈思琪', time:'09:00-11:00', date:today },
+          { id:'c5', type:'contest', studentName:'张小明', time:'09:00-11:00', date:today },
+          { id:'c6', type:'holiday', studentName:'李雨涵', time:'10:00-12:00', date:today },
+          { id:'c7', type:'outing', studentName:'王浩然', time:'14:00-16:00', date:today },
+        ];
+        data.value.progresses = [
+          { id:'p1', studentName:'张小明', age:10, subject:'Scratch', level:'二级', courses:['海底世界','守门大战','超声蝙蝠挑战'] },
+          { id:'p2', studentName:'李雨涵', age:9, subject:'Scratch', level:'一级', courses:['小猫散步','魔法画笔'] },
+          { id:'p3', studentName:'王浩然', age:10, subject:'Python', level:'二级', courses:['猜数字游戏','天气查询器'] },
+          { id:'p4', studentName:'陈思琪', age:11, subject:'Python', level:'二级', courses:['贪吃蛇','简易计算器'] },
+          { id:'p5', studentName:'张小明', age:10, subject:'EV3', level:'初级', courses:['小车巡线','颜色分拣'] },
+        ];
+        data.value.meals = [
+          { id:'m1', date:'2026-07-28', amount:25, month:7 },
+          { id:'m2', date:'2026-07-29', amount:30, month:7 },
+          { id:'m3', date:'2026-07-30', amount:25, month:7 },
+        ];
+        data.value.reimbursements = [
+          { id:'r1', category:'教材', amount:158, date:'2026-07-25', status:'已审批', proof:'教材发票.jpg' },
+          { id:'r2', category:'交通', amount:86, date:'2026-07-28', status:'待审批', proof:'' },
+        ];
+        saveDataToFile(data.value);
+      }
+    });
+
+    // ==================== 提成管理 ====================
+    const commissionMonth = ref(todayStr.value.slice(0,7));
+    const commissionMonthLabel = computed(() => {
+      const [y,m] = commissionMonth.value.split('-');
+      return y + ' 年 ' + parseInt(m) + ' 月';
+    });
+    const prevCommissionMonth = () => {
+      const [y,m] = commissionMonth.value.split('-').map(Number);
+      const d = new Date(y, m-2, 1);
+      commissionMonth.value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      drawCommissionChart();
+    };
+    const nextCommissionMonth = () => {
+      const [y,m] = commissionMonth.value.split('-').map(Number);
+      const d = new Date(y, m, 1);
+      commissionMonth.value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      drawCommissionChart();
+    };
+    const goCurrentCommissionMonth = () => {
+      commissionMonth.value = todayStr.value.slice(0,7);
+      drawCommissionChart();
+    };
+
+    // 体验课提成
+    const trialMonthRecords = computed(() =>
+      data.value.trialCommissions.filter(r => r.month === commissionMonth.value)
+    );
+    const trialMonthTotal = computed(() =>
+      trialMonthRecords.value.reduce((s,r) => s + r.commissionAmount, 0)
+    );
+    const trialAllTotal = computed(() =>
+      data.value.trialCommissions.reduce((s,r) => s + r.commissionAmount, 0)
+    );
+
+    // 新招或续费提成
+    const enrollmentMonthRecords = computed(() =>
+      data.value.enrollmentCommissions.filter(r => r.month === commissionMonth.value)
+    );
+    const enrollmentMonthTotal = computed(() =>
+      enrollmentMonthRecords.value.reduce((s,r) => s + r.commissionAmount, 0)
+    );
+    const enrollmentAllTotal = computed(() =>
+      data.value.enrollmentCommissions.reduce((s,r) => s + r.commissionAmount, 0)
+    );
+
+    // 全部合并
+    const allCommissionRecords = computed(() =>
+      [...data.value.trialCommissions, ...data.value.enrollmentCommissions]
+    );
+    const allCommissionMonthRecords = computed(() =>
+      allCommissionRecords.value.filter(r => r.month === commissionMonth.value)
+    );
+    const allCommissionTotal = computed(() =>
+      allCommissionRecords.value.reduce((s,r) => s + r.commissionAmount, 0)
+    );
+    const allCommissionMonthTotal = computed(() =>
+      allCommissionMonthRecords.value.reduce((s,r) => s + r.commissionAmount, 0)
+    );
+
+    // 详情弹窗
+    const commDetail = ref({ show:false, title:'', records:[] });
+    const openCommissionDetail = (type, scope) => {
+      let records = [];
+      let title = '';
+      if (type === 'trial') {
+        records = scope === 'month' ? trialMonthRecords.value : data.value.trialCommissions;
+        title = (scope === 'month' ? commissionMonthLabel.value + ' ' : '') + '体验课提成';
+      } else if (type === 'enrollment') {
+        records = scope === 'month' ? enrollmentMonthRecords.value : data.value.enrollmentCommissions;
+        title = (scope === 'month' ? commissionMonthLabel.value + ' ' : '') + '新招/续费提成';
+      } else {
+        records = scope === 'month' ? allCommissionMonthRecords.value : allCommissionRecords.value;
+        title = (scope === 'month' ? commissionMonthLabel.value + ' ' : '') + '全部提成';
+      }
+      commDetail.value = { show:true, title, records };
+    };
+
+    // 编辑弹窗
+    const commEdit = ref({ show:false, id:null, type:'trial', recordType:'trial', month:'', studentName:'', packageAmount:0, commissionAmount:0 });
+    const genCommId = () => 'cm_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+
+    const openCommissionEdit = (type) => {
+      const m = commissionMonth.value;
+      commEdit.value = { show:true, id:null, type, recordType: type==='all'?'trial':type, month:m, studentName:'', packageAmount:0, commissionAmount:0 };
+    };
+    const editCommissionFromDetail = (r) => {
+      commEdit.value = { show:true, id:r.id, type:r.type, recordType:r.type, month:r.month, studentName:r.studentName, packageAmount:r.packageAmount, commissionAmount:r.commissionAmount };
+    };
+    const saveCommission = () => {
+      const e = commEdit.value;
+      if (!e.studentName.trim()) { alert('请输入学生姓名'); return; }
+      if (!e.month) { alert('请选择月份'); return; }
+      const actualType = e.type === 'all' ? e.recordType : e.type;
+      const key = actualType === 'trial' ? 'trialCommissions' : 'enrollmentCommissions';
+      if (e.id) {
+        const arr = data.value[key];
+        const idx = arr.findIndex(r => r.id === e.id);
+        if (idx !== -1) {
+          arr[idx] = { ...arr[idx], month:e.month, studentName:e.studentName.trim(), packageAmount:e.packageAmount||0, commissionAmount:e.commissionAmount||0 };
+        }
+      } else {
+        data.value[key].push({
+          id: genCommId(), type: actualType,
+          month: e.month, studentName: e.studentName.trim(),
+          packageAmount: e.packageAmount || 0, commissionAmount: e.commissionAmount || 0
+        });
+      }
+      saveDataToFile(data.value);
+      commEdit.value.show = false;
+      drawCommissionChart();
+    };
+    const deleteCommission = (id) => {
+      if (!confirm('确定删除该条提成记录吗？')) return;
+      let found = false;
+      for (const key of ['trialCommissions','enrollmentCommissions']) {
+        const idx = data.value[key].findIndex(r => r.id === id);
+        if (idx !== -1) { data.value[key].splice(idx,1); found = true; break; }
+      }
+      if (found) {
+        saveDataToFile(data.value);
+        // 刷新详情弹窗
+        if (commDetail.value.show) {
+          commDetail.value.records = commDetail.value.records.filter(r => r.id !== id);
+        }
+        drawCommissionChart();
+      }
+    };
+
+    // 图表
+    const commissionChartRef = ref(null);
+    const drawCommissionChart = () => {
+      if (!commissionChartRef.value) return;
+      const canvas = commissionChartRef.value;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const w = rect.width - 24;
+      const h = 200;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      ctx.scale(dpr, dpr);
+
+      // 汇总每月提成
+      const all = [...data.value.trialCommissions, ...data.value.enrollmentCommissions];
+      const monthMap = {};
+      all.forEach(r => { monthMap[r.month] = (monthMap[r.month]||0) + r.commissionAmount; });
+      let months = Object.keys(monthMap).sort();
+      if (months.length === 0) {
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = '#999';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无提成数据', w/2, h/2);
+        return;
+      }
+      // 最近6个月
+      if (months.length > 6) months = months.slice(-6);
+      const values = months.map(m => monthMap[m]);
+      const maxVal = Math.max(...values, 1);
+
+      ctx.clearRect(0,0,w,h);
+      const pad = { top:20, right:20, bottom:30, left:45 };
+      const chartW = w - pad.left - pad.right;
+      const chartH = h - pad.top - pad.bottom;
+      const barW = Math.min(chartW / months.length * 0.65, 50);
+      const gap = chartW / months.length;
+
+      // 渐变背景
+      const grad = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+      grad.addColorStop(0, '#4A90E2');
+      grad.addColorStop(1, '#7B68EE');
+
+      months.forEach((m, i) => {
+        const val = values[i];
+        const barH = (val / maxVal) * chartH;
+        const x = pad.left + i * gap + (gap - barW) / 2;
+        const y = pad.top + chartH - barH;
+        // 圆角柱状
+        const r = 4;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(x+r, y);
+        ctx.lineTo(x+barW-r, y);
+        ctx.quadraticCurveTo(x+barW, y, x+barW, y+r);
+        ctx.lineTo(x+barW, y+barH);
+        ctx.lineTo(x, y+barH);
+        ctx.lineTo(x, y+r);
+        ctx.quadraticCurveTo(x, y, x+r, y);
+        ctx.fill();
+
+        // 数值标签
+        ctx.fillStyle = '#333';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('¥' + val, x + barW/2, y - 5);
+
+        // X轴标签
+        ctx.fillStyle = '#666';
+        ctx.font = '10px sans-serif';
+        const [yy, mm] = m.split('-');
+        ctx.fillText(yy.slice(2) + '/' + mm, x + barW/2, h - pad.bottom + 16);
+      });
+
+      // Y轴
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 3; i++) {
+        const yPos = pad.top + chartH * (1 - i/3);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, yPos);
+        ctx.lineTo(w - pad.right, yPos);
+        ctx.stroke();
+        ctx.fillStyle = '#999';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('¥' + Math.round(maxVal * i / 3), pad.left - 6, yPos + 3);
+      }
+    };
+
+    // 切换页面时重绘图表
+    watch(currentPage, (v) => {
+      if (v === 'commission') {
+        setTimeout(drawCommissionChart, 100);
+      }
+    });
+
+    // 设置/更换数据文件
+    const setupDataFileHandler = async () => {
+      const ok = await setupDataFile(data.value);
+      if (ok) { dataFromFile.value = true; alert('已设置数据文件，后续修改将自动同步'); }
+    };
+
+    // 导出备份（下载 JSON 文件）
+    const exportData = () => {
+      const json = JSON.stringify(data.value, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '教师工作台备份_' + new Date().toISOString().slice(0,10) + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    return {
+      sidebarCollapsed, currentPage, studentTab, viewMode,
+      navItems, courseTypes, subjects,
+      todayStr, weekdayStr, currentMonth, currentNav,
+      data, dataFromFile,
+      rosterSearch, rosterGenderFilter, rosterSort,
+      modalCourse, modalCourseEdit, editingCourse,
+      modalMeal, modalMealEdit, editingMeal, mealsByViewMonth, mealViewMonthTotal,
+      modalReimburse, modalReimburseEdit, editingReimburse, reimburseViewMonthTotal, reimbursementsByViewMonth,
+      modalRosterEdit, editingRoster,
+      modalProgress, progressSubject, modalProgressEdit, editingProgress,
+      modalStudentDetail, detailStudentName, studentDetailData, openStudentDetail,
+      newCourseInputs, addStudentCourse, deleteStudentCourse,
+      courseViewDate, courseViewDateLabel,
+      prevCourseViewDate, nextCourseViewDate, goTodayCourseView,
+      getCoursesByViewDate, getCourseCountByDate, openCourseDetail, addCourse, editCourse, saveCourse, deleteCourse,
+      reimburseViewYear, reimburseViewMonthNum, reimburseMonthLabel,
+      prevReimburseMonth, nextReimburseMonth, goCurrentReimburseMonth,
+      openMealDetail, addMeal, editMeal, saveMeal, deleteMeal,
+      openReimburseDetail, addReimburse, editReimburse, saveReimburse, deleteReimburse,
+      filteredRoster, openRosterAdd, openRosterEdit, saveRoster, deleteRoster,
+      getSubjectProgress, getSubjectLevels, getProgressBySubjectLevel, getSubjectStudentCount,
+      openProgressEditForSubject, openProgressAdd, addProgressForSubject, editProgress, saveProgress, deleteProgress,
+      timeBlocks, weekDays, weekLabel, getCoursesByDateBlock, getCourseTypeLabel,
+      prevWeek, nextWeek, goCurrentWeek, addCourseFromSchedule,
+      statsMonthLabel, modalMonthStats, monthlyCoursesForStats, monthlyStudentDetails,
+      monthlyStudentCount, monthlyStatsSummary,
+      prevStatsMonth, nextStatsMonth, goCurrentStatsMonth, openMonthStats, addCourseFromMonthStats,
+      // Todo清单
+      todoInput, todoFilterKey, todoFilters, filteredTodos, todoDateLabel,
+      activeTodoCount, completedTodoCount, editingTodoId, editTodoText,
+      addTodo, toggleTodo, startEditTodo, saveEditTodo, cancelEditTodo, deleteTodo, clearCompletedTodos,
+      // 提成管理
+      commissionMonth, commissionMonthLabel, prevCommissionMonth, nextCommissionMonth, goCurrentCommissionMonth,
+      trialMonthRecords, trialMonthTotal, trialAllTotal,
+      enrollmentMonthRecords, enrollmentMonthTotal, enrollmentAllTotal,
+      allCommissionRecords, allCommissionMonthRecords, allCommissionTotal, allCommissionMonthTotal,
+      commDetail, openCommissionDetail, commEdit, openCommissionEdit, editCommissionFromDetail, saveCommission, deleteCommission,
+      commissionChartRef,
+      // 数据文件管理
+      dataFromFile, setupDataFileHandler, exportData,
+    };
+  }
+}).mount('#app');
+document.getElementById('loading').style.display='none';
+</script>
+</body>
+</html>
