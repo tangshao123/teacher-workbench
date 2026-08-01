@@ -366,16 +366,14 @@ tr:hover td { background:#fafcfb; }
         <span class="nav-label">{{ item.label }}</span>
       </button>
     </div>
-    <!-- 数据文件管理 -->
+    <!-- 数据同步状态 -->
     <div class="sidebar-footer">
-      <div class="data-status" v-if="dataFromFile" title="数据自动同步到 teacher-workbench-data.json">
-        <span class="status-dot"></span>文件同步中
+      <div class="data-status" v-if="supabaseOnline" title="数据通过 Supabase 云端同步">
+        <span class="status-dot"></span>云端同步中
       </div>
-      <div class="data-status no-file" v-else title="当前使用浏览器本地存储">
-        <span class="status-dot"></span>未配置文件
+      <div class="data-status no-file" v-else title="Supabase 不可用，使用本地缓存">
+        <span class="status-dot"></span>离线模式（本地缓存）
       </div>
-      <button class="btn-data" @click="setupDataFileHandler">{{ dataFromFile ? '更换数据文件' : '设置数据文件' }}</button>
-      <button class="btn-data" @click="exportData">导出备份</button>
     </div>
   </nav>
 
@@ -1174,7 +1172,6 @@ tr:hover td { background:#fafcfb; }
 const { createApp, ref, computed, watch, onMounted } = Vue;
 
 const STORAGE_KEY_PREFIX = 'teacher_workbench_data_v2';
-const DATA_FILE_NAME = 'teacher-workbench-data.json';
 let _currentUsername = null;
 function getStorageKey() { return _currentUsername ? `${STORAGE_KEY_PREFIX}_${_currentUsername}` : STORAGE_KEY_PREFIX; }
 
@@ -1184,46 +1181,16 @@ const supabaseClient = window.supabase.createClient(
   'sb_publishable_1qu8shsDsmeEeXLo1PugqA_2XI2VKZy'
 );
 
-/* ===== IndexedDB：持久化文件句柄 ===== */
-const DB_NAME = 'TeacherWorkbenchDB';
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = (e) => { e.target.result.createObjectStore('handles'); };
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function storeFileHandle(handle) {
-  const db = await openDB();
-  return new Promise((resolve) => {
-    const tx = db.transaction('handles', 'readwrite');
-    tx.objectStore('handles').put(handle, 'dataFile');
-    tx.oncomplete = () => resolve();
-  });
-}
-async function getStoredFileHandle() {
-  try {
-    const db = await openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction('handles', 'readonly');
-      const req = tx.objectStore('handles').get('dataFile');
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    });
-  } catch(e) { return null; }
-}
-
-/* ===== 数据加载（Supabase 优先 → localStorage 兜底 → 文件兜底） ===== */
+/* ===== 数据加载（Supabase 优先 → localStorage 缓存兜底） ===== */
 async function loadData() {
   const defaults = {
     courses: [], meals: [], reimbursements: [], roster: [], progresses: [], todos: [],
     trialCommissions: [], enrollmentCommissions: []
   };
 
-  // 1. 优先从 Supabase 加载
-  let supabaseData = null;
   const dataId = _currentUsername || 'default';
+
+  // 1. 优先从 Supabase 读取
   try {
     const { data: row, error } = await supabaseClient
       .from('workbench_data')
@@ -1231,110 +1198,58 @@ async function loadData() {
       .eq('id', dataId)
       .single();
     if (!error && row && row.data) {
-      supabaseData = row.data;
+      const sd = row.data;
       for (const key of Object.keys(defaults)) {
-        if (!(key in supabaseData)) supabaseData[key] = defaults[key];
+        if (!(key in sd)) sd[key] = defaults[key];
       }
+      // 缓存到 localStorage 作为离线副本
+      localStorage.setItem(getStorageKey(), JSON.stringify(sd));
+      localStorage.setItem('teacher_wb_supabase_online', '1');
+      return { data: sd, fromSupabase: true };
     }
-  } catch(e) { /* Supabase 不可用，继续回退 */ }
+  } catch(e) { /* Supabase 不可用，降级到 localStorage */ }
 
-  // 2. 从 localStorage 读取
-  let localData = null;
+  // 2. Supabase 不可用，读取 localStorage 缓存
   try {
     const raw = localStorage.getItem(getStorageKey());
     if (raw) {
-      localData = JSON.parse(raw);
+      const localData = JSON.parse(raw);
       for (const key of Object.keys(defaults)) {
         if (!(key in localData)) localData[key] = defaults[key];
       }
+      localStorage.setItem('teacher_wb_supabase_online', '0');
+      return { data: localData, fromSupabase: false };
     }
   } catch(e) {}
 
-  // 3. 数据合并：使用较新数据（基于 _updatedAt 时间戳）
-  let result = null;
-  if (supabaseData && localData) {
-    const supabaseTime = supabaseData._updatedAt || 0;
-    const localTime = localData._updatedAt || 0;
-    result = supabaseTime >= localTime ? supabaseData : localData;
-  } else if (supabaseData) {
-    result = supabaseData;
-  } else if (localData) {
-    result = localData;
-  }
-
-  if (result) {
-    // 同步到 localStorage
-    localStorage.setItem(getStorageKey(), JSON.stringify(result));
-    return { data: result, fromFile: false };
-  }
-
-  // 4. 文件兜底
-  const handle = await getStoredFileHandle();
-  if (handle) {
-    try {
-      const perm = await handle.queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') {
-        const req = await handle.requestPermission({ mode: 'readwrite' });
-        if (req !== 'granted') throw new Error('无权限');
-      }
-      const file = await handle.getFile();
-      const parsed = JSON.parse(await file.text());
-      for (const key of Object.keys(defaults)) {
-        if (!(key in parsed)) parsed[key] = defaults[key];
-      }
-      // 同步到 localStorage
-      localStorage.setItem(getStorageKey(), JSON.stringify(parsed));
-      return { data: parsed, fromFile: true };
-    } catch(e) { /* 文件读取失败 → 回退默认值 */ }
-  }
-
-  return { data: defaults, fromFile: false };
+  // 3. 两者都没有，使用空白默认数据
+  return { data: defaults, fromSupabase: false };
 }
 
-/* ===== 数据保存（localStorage + Supabase + 文件三写） ===== */
+/* ===== 数据保存（Supabase 优先 + localStorage 缓存兜底） ===== */
 async function saveDataToFile(data) {
-  // 添加更新时间戳
   data._updatedAt = Date.now();
-  // 写入 localStorage（离线兜底）
-  localStorage.setItem(getStorageKey(), JSON.stringify(data));
-  // 异步写入 Supabase（不阻塞 UI）
   const dataId = _currentUsername || 'default';
-  try {
-    await supabaseClient.from('workbench_data').upsert({ id: dataId, data: data });
-  } catch(e) { /* Supabase 不可用时静默失败 */ }
-  // 文件写入（保留原有逻辑）
-  const handle = await getStoredFileHandle();
-  if (handle) {
-    try {
-      const perm = await handle.queryPermission({ mode: 'readwrite' });
-      if (perm === 'granted') {
-        const writable = await handle.createWritable();
-        await writable.write(JSON.stringify(data, null, 2));
-        await writable.close();
-      }
-    } catch(e) { /* 静默失败，localStorage 已有数据 */ }
-  }
-}
+  const wasOffline = localStorage.getItem('teacher_wb_supabase_online') !== '1';
 
-/* ===== 设置数据文件（用户手动触发） ===== */
-async function setupDataFile(dataObj) {
-  if (!window.showSaveFilePicker) {
-    alert('当前浏览器不支持文件系统 API，请使用 Chrome 或 Edge');
-    return false;
-  }
+  // 1. 优先写入 Supabase
+  let supabaseOk = false;
   try {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: DATA_FILE_NAME,
-      types: [{ description: 'JSON 数据文件', accept: { 'application/json': ['.json'] } }]
-    });
-    const writable = await handle.createWritable();
-    await writable.write(JSON.stringify(dataObj, null, 2));
-    await writable.close();
-    await storeFileHandle(handle);
-    return true;
-  } catch(e) {
-    if (e.name !== 'AbortError') alert('设置失败：' + e.message);
-    return false;
+    const { error } = await supabaseClient.from('workbench_data').upsert({ id: dataId, data: data });
+    if (!error) {
+      supabaseOk = true;
+      localStorage.setItem('teacher_wb_supabase_online', '1');
+    }
+  } catch(e) { /* Supabase 不可用 */ }
+
+  // 2. 如果之前离线且这次恢复了，数据已在上面的 upsert 中推送成功
+
+  // 3. 写入 localStorage（始终写入，保证本地不丢数据）
+  localStorage.setItem(getStorageKey(), JSON.stringify(data));
+
+  // 4. Supabase 失败时标记离线状态
+  if (!supabaseOk) {
+    localStorage.setItem('teacher_wb_supabase_online', '0');
   }
 }
 
@@ -1345,7 +1260,9 @@ createApp({
       courses: [], meals: [], reimbursements: [], roster: [], progresses: [], todos: [],
       trialCommissions: [], enrollmentCommissions: []
     });
-    const dataFromFile = ref(false);  // 是否从 JSON 文件加载
+    const supabaseOnline = computed(() => {
+      return localStorage.getItem('teacher_wb_supabase_online') !== '0';
+    });  // 实时读取 Supabase 在线状态
 
     // ===== 按当前登录老师过滤数据 =====
     const teacherData = computed(() => {
@@ -1973,6 +1890,10 @@ createApp({
       }
       loginLoading.value = true;
       loginError.value = '';
+
+      let authenticatedUser = null;
+
+      // 1. 优先尝试 Supabase users 表查询
       try {
         const { data, error } = await supabaseClient
           .from('users')
@@ -1980,21 +1901,29 @@ createApp({
           .eq('username', username.trim())
           .eq('password', password)
           .single();
-        if (error || !data) {
-          loginError.value = '账号或密码错误';
-        } else {
-          currentUser.value = { username: data.username, role: data.role || 'user' };
-          isLoggedIn.value = true;
-          _currentUsername = data.username;
-          localStorage.setItem(SESSION_KEY, JSON.stringify({
-            user: currentUser.value,
-            expiresAt: Date.now() + 24 * 60 * 60 * 1000
-          }));
-          loadUsers();
+        if (!error && data) {
+          authenticatedUser = { username: data.username, role: data.role || 'user' };
         }
-      } catch(e) {
-        loginError.value = '登录失败，请检查网络连接';
+      } catch(e) { /* Supabase 不可用，降级到本地兜底 */ }
+
+      // 2. 本地兜底认证：admin/admin123 永远可用
+      if (!authenticatedUser && username.trim() === 'admin' && password === 'admin123') {
+        authenticatedUser = { username: 'admin', role: 'admin' };
       }
+
+      if (authenticatedUser) {
+        currentUser.value = authenticatedUser;
+        isLoggedIn.value = true;
+        _currentUsername = authenticatedUser.username;
+        localStorage.setItem(SESSION_KEY, JSON.stringify({
+          user: currentUser.value,
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000
+        }));
+        loadUsers();
+      } else {
+        loginError.value = '账号或密码错误';
+      }
+
       loginLoading.value = false;
     }
 
@@ -2097,7 +2026,7 @@ createApp({
 
       const loaded = await loadData();
       data.value = loaded.data;
-      dataFromFile.value = loaded.fromFile;
+      // supabaseOnline 从 localStorage 实时读取，无需手动赋值
       if (data.value.roster.length===0 && data.value.courses.length===0) {
         const today = todayStr.value;
         const demoTeacher = currentUser.value?.username || 'admin';
@@ -2367,29 +2296,11 @@ createApp({
       }
     });
 
-    // 设置/更换数据文件
-    const setupDataFileHandler = async () => {
-      const ok = await setupDataFile(data.value);
-      if (ok) { dataFromFile.value = true; alert('已设置数据文件，后续修改将自动同步'); }
-    };
-
-    // 导出备份（下载 JSON 文件）
-    const exportData = () => {
-      const json = JSON.stringify(data.value, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '教师工作台备份_' + new Date().toISOString().slice(0,10) + '.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-
     return {
       sidebarCollapsed, currentPage, studentTab, viewMode,
       navItems, courseTypes, subjects,
       todayStr, weekdayStr, currentMonth, currentNav,
-      data, teacherData, dataFromFile,
+      data, teacherData, supabaseOnline,
       rosterSearch, rosterGenderFilter, rosterSort,
       modalCourse, modalCourseEdit, editingCourse,
       modalMeal, modalMealEdit, editingMeal, mealsByViewMonth, mealViewMonthTotal,
@@ -2424,8 +2335,6 @@ createApp({
       allCommissionRecords, allCommissionMonthRecords, allCommissionTotal, allCommissionMonthTotal,
       commDetail, openCommissionDetail, commEdit, openCommissionEdit, editCommissionFromDetail, saveCommission, deleteCommission,
       commissionChartRef,
-      // 数据文件管理
-      dataFromFile, setupDataFileHandler, exportData,
       // 登录认证
       isLoggedIn, currentUser, loginForm, loginError, loginLoading, handleLogin, handleLogout,
       // 账号管理
