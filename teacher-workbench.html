@@ -524,7 +524,7 @@ tr:hover td { background:#fafcfb; }
           </div>
 
           <!-- 底部统计 -->
-          <div v-if="data.todos.length" class="todo-footer">
+          <div v-if="teacherData.todos.length" class="todo-footer">
             <span class="todo-count">
               剩余 <strong>{{ activeTodoCount }}</strong> 项待办
             </span>
@@ -691,7 +691,7 @@ tr:hover td { background:#fafcfb; }
             <div class="card" @click="openCommissionDetail('trial','all')" style="cursor:pointer;">
               <div class="card-label">全部汇总</div>
               <div class="card-amount">¥{{ trialAllTotal }}</div>
-              <div class="card-sub">{{ data.trialCommissions.length }} 条累计记录</div>
+              <div class="card-sub">{{ teacherData.trialCommissions.length }} 条累计记录</div>
             </div>
           </div>
           <div class="commission-actions" style="margin-top:8px;">
@@ -711,7 +711,7 @@ tr:hover td { background:#fafcfb; }
             <div class="card" @click="openCommissionDetail('enrollment','all')" style="cursor:pointer;">
               <div class="card-label">全部汇总</div>
               <div class="card-amount">¥{{ enrollmentAllTotal }}</div>
-              <div class="card-sub">{{ data.enrollmentCommissions.length }} 条累计记录</div>
+              <div class="card-sub">{{ teacherData.enrollmentCommissions.length }} 条累计记录</div>
             </div>
           </div>
           <div class="commission-actions" style="margin-top:8px;">
@@ -822,16 +822,16 @@ tr:hover td { background:#fafcfb; }
           <button class="btn btn-outline btn-sm" @click="handleLogout" style="margin-left:16px;">退出登录</button>
         </div>
         <div class="account-toolbar">
-          <button class="btn btn-primary btn-sm" @click="openAddAccount">+ 新增账号</button>
-          <button class="btn btn-outline btn-sm" @click="loadUsers">刷新列表</button>
+          <button class="btn btn-primary btn-sm" @click="openAddAccount" v-if="currentUser && currentUser.username==='admin'">+ 新增账号</button>
+          <button class="btn btn-outline btn-sm" @click="loadUsers" v-if="currentUser && currentUser.username==='admin'">刷新列表</button>
         </div>
         <div class="card" style="overflow-x:auto;">
-          <table v-if="users.length">
+          <table v-if="filteredUsers.length">
             <thead>
               <tr><th>ID</th><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr>
             </thead>
             <tbody>
-              <tr v-for="u in users" :key="u.id">
+              <tr v-for="u in filteredUsers" :key="u.id">
                 <td>{{ u.id }}</td>
                 <td>{{ u.username }}</td>
                 <td>{{ u.role || 'user' }}</td>
@@ -1346,6 +1346,22 @@ createApp({
       trialCommissions: [], enrollmentCommissions: []
     });
     const dataFromFile = ref(false);  // 是否从 JSON 文件加载
+
+    // ===== 按当前登录老师过滤数据 =====
+    const teacherData = computed(() => {
+      const username = currentUser.value?.username;
+      if (!username) return data.value;
+      return {
+        courses: data.value.courses.filter(c => c.teacher === username),
+        meals: data.value.meals.filter(m => m.teacher === username),
+        reimbursements: data.value.reimbursements.filter(r => r.teacher === username),
+        roster: data.value.roster.filter(r => r.teacher === username),
+        progresses: data.value.progresses.filter(p => p.teacher === username),
+        todos: data.value.todos.filter(t => t.teacher === username),
+        trialCommissions: data.value.trialCommissions.filter(tc => tc.teacher === username),
+        enrollmentCommissions: data.value.enrollmentCommissions.filter(ec => ec.teacher === username),
+      };
+    });
     const sidebarCollapsed = ref(false);
     const currentPage = ref('ledger');
     const studentTab = ref('roster');
@@ -1369,6 +1385,13 @@ createApp({
     const accountModal = ref(false);
     const accountForm = ref({ id: null, username: '', password: '', isNew: true });
     const accountLoading = ref(false);
+    // 账号列表过滤：admin看全部，普通老师只看自己
+    const filteredUsers = computed(() => {
+      if (!currentUser.value || currentUser.value.username !== 'admin') {
+        return users.value.filter(u => u.username === currentUser.value.username);
+      }
+      return users.value;
+    });
 
     // 弹窗状态
     const modalCourse = ref(null);
@@ -1450,7 +1473,7 @@ createApp({
     });
 
     function getCoursesByDate(date) {
-      return data.value.courses.filter(c => c.date===date);
+      return teacherData.value.courses.filter(c => c.date===date);
     }
 
     function parseTimeHour(timeStr) {
@@ -1496,7 +1519,7 @@ createApp({
     const modalMonthStats = ref(false);
 
     const monthlyCoursesForStats = computed(() => {
-      return data.value.courses.filter(c => {
+      return teacherData.value.courses.filter(c => {
         const [y, m] = c.date.split('-').map(Number);
         return y === statsYear.value && m === statsMonthNum.value;
       });
@@ -1584,7 +1607,7 @@ createApp({
 
     // 课时相关
     const getCoursesByViewDate = (type) => {
-      return data.value.courses.filter(c => c.type===type && c.date===courseViewDate.value);
+      return teacherData.value.courses.filter(c => c.type===type && c.date===courseViewDate.value);
     };
     const getCourseCountByDate = (type) => getCoursesByViewDate(type).length;
 
@@ -1605,7 +1628,7 @@ createApp({
         if (idx>=0) data.value.courses[idx] = { ...c };
       } else {
         c.id = 'c_' + Date.now();
-        data.value.courses.push({ ...c });
+        data.value.courses.push({ ...c, teacher: currentUser.value?.username || '' });
       }
       saveDataToFile(data.value);
       modalCourseEdit.value = false;
@@ -1642,7 +1665,7 @@ createApp({
     }
 
     // 餐补
-    const mealsByViewMonth = computed(() => data.value.meals.filter(m => m.month===reimburseViewMonthNum.value));
+    const mealsByViewMonth = computed(() => teacherData.value.meals.filter(m => m.month===reimburseViewMonthNum.value));
     const mealViewMonthTotal = computed(() => mealsByViewMonth.value.reduce((s,m)=>s+(m.amount||0),0));
 
     const openMealDetail = () => { modalMeal.value = true; };
@@ -1661,7 +1684,7 @@ createApp({
         if (idx>=0) data.value.meals[idx] = { ...m };
       } else {
         m.id = 'm_' + Date.now();
-        data.value.meals.push({ ...m });
+        data.value.meals.push({ ...m, teacher: currentUser.value?.username || '' });
       }
       saveDataToFile(data.value);
       modalMealEdit.value = false;
@@ -1673,7 +1696,7 @@ createApp({
 
     // 报销
     const reimbursementsByViewMonth = computed(() =>
-      data.value.reimbursements.filter(r => {
+      teacherData.value.reimbursements.filter(r => {
         const m = parseInt(r.date.split('-')[1]);
         return m === reimburseViewMonthNum.value;
       })
@@ -1696,7 +1719,7 @@ createApp({
         if (idx>=0) data.value.reimbursements[idx] = { ...r };
       } else {
         r.id = 'r_' + Date.now();
-        data.value.reimbursements.push({ ...r });
+        data.value.reimbursements.push({ ...r, teacher: currentUser.value?.username || '' });
       }
       saveDataToFile(data.value);
       modalReimburseEdit.value = false;
@@ -1708,7 +1731,7 @@ createApp({
 
     // 花名册
     const filteredRoster = computed(() => {
-      let list = [...data.value.roster];
+      let list = [...teacherData.value.roster];
       const s = rosterSearch.value.toLowerCase();
       if (s) list = list.filter(r => r.name.toLowerCase().includes(s) || r.id.toLowerCase().includes(s));
       if (rosterGenderFilter.value) list = list.filter(r => r.gender===rosterGenderFilter.value);
@@ -1732,7 +1755,7 @@ createApp({
       if (idx>=0) {
         data.value.roster[idx] = { ...r };
       } else {
-        data.value.roster.push({ ...r });
+        data.value.roster.push({ ...r, teacher: currentUser.value?.username || '' });
       }
       saveDataToFile(data.value);
       modalRosterEdit.value = false;
@@ -1743,7 +1766,7 @@ createApp({
     };
 
     // 学习进度
-    const getSubjectProgress = (subj) => data.value.progresses.filter(p => p.subject===subj);
+    const getSubjectProgress = (subj) => teacherData.value.progresses.filter(p => p.subject===subj);
     const getSubjectLevels = (subj) => {
       const levels = [...new Set(getSubjectProgress(subj).map(p => p.level))];
       return levels.sort((a,b) => a.localeCompare(b, 'zh'));
@@ -1776,7 +1799,7 @@ createApp({
         if (idx>=0) data.value.progresses[idx] = { ...p };
       } else {
         p.id = 'p_' + Date.now();
-        data.value.progresses.push({ ...p });
+        data.value.progresses.push({ ...p, teacher: currentUser.value?.username || '' });
       }
       saveDataToFile(data.value);
       modalProgressEdit.value = false;
@@ -1789,7 +1812,7 @@ createApp({
     // 学员详情
     const studentDetailData = computed(() => {
       if (!detailStudentName.value) return null;
-      const records = data.value.progresses.filter(p => p.studentName === detailStudentName.value);
+      const records = teacherData.value.progresses.filter(p => p.studentName === detailStudentName.value);
       if (records.length === 0) return null;
       const age = records[0].age;
       const subjects = [];
@@ -1832,7 +1855,8 @@ createApp({
           age: existing ? existing.age : '',
           subject,
           level: '',
-          courses: [courseName]
+          courses: [courseName],
+          teacher: currentUser.value?.username || ''
         });
       }
       newCourseInputs.value[subject] = '';
@@ -1869,21 +1893,21 @@ createApp({
 
     // 按筛选条件过滤任务
     const filteredTodos = computed(() => {
-      if (todoFilterKey.value === 'active') return data.value.todos.filter(t => !t.done);
-      if (todoFilterKey.value === 'completed') return data.value.todos.filter(t => t.done);
-      return data.value.todos;
+      if (todoFilterKey.value === 'active') return teacherData.value.todos.filter(t => !t.done);
+      if (todoFilterKey.value === 'completed') return teacherData.value.todos.filter(t => t.done);
+      return teacherData.value.todos;
     });
 
     // 未完成数量
-    const activeTodoCount = computed(() => data.value.todos.filter(t => !t.done).length);
+    const activeTodoCount = computed(() => teacherData.value.todos.filter(t => !t.done).length);
     // 已完成数量
-    const completedTodoCount = computed(() => data.value.todos.filter(t => t.done).length);
+    const completedTodoCount = computed(() => teacherData.value.todos.filter(t => t.done).length);
 
     // 添加任务：空输入拦截
     const addTodo = () => {
       const text = todoInput.value.trim();
       if (!text) return;
-      data.value.todos.push({ id: 't_' + Date.now(), text, done: false });
+      data.value.todos.push({ id: 't_' + Date.now(), text, done: false, teacher: currentUser.value?.username || '' });
       saveDataToFile(data.value);
       todoInput.value = '';
     };
@@ -1987,10 +2011,16 @@ createApp({
     async function loadUsers() {
       accountLoading.value = true;
       try {
-        const { data, error } = await supabaseClient
+        let query = supabaseClient
           .from('users')
           .select('*')
           .order('created_at', { ascending: false });
+        if (currentUser.value && currentUser.value.username !== 'admin') {
+          // 普通老师：从Supabase层面只查自己的账号
+          query = query.eq('username', currentUser.value.username);
+        }
+        // admin：查全部（无需额外过滤）
+        const { data, error } = await query;
         if (!error) users.value = data || [];
       } catch(e) {}
       accountLoading.value = false;
@@ -2002,6 +2032,10 @@ createApp({
     }
 
     function openEditPassword(user) {
+      if (user.username === 'admin' && currentUser.value && currentUser.value.username !== 'admin') {
+        alert('无权限修改管理员密码');
+        return;
+      }
       accountForm.value = { id: user.id, username: user.username, password: '', isNew: false };
       accountModal.value = true;
     }
@@ -2038,11 +2072,19 @@ createApp({
         alert('管理员账号不可删除');
         return;
       }
-      if (!confirm(`确定删除账号「${user.username}」吗？此操作不可恢复。`)) return;
+      const isSelfDelete = currentUser.value && user.username === currentUser.value.username;
+      const confirmMsg = isSelfDelete
+        ? `确定删除自己的账号「${user.username}」吗？删除后将退出登录，此操作不可恢复。`
+        : `确定删除账号「${user.username}」吗？此操作不可恢复。`;
+      if (!confirm(confirmMsg)) return;
       try {
         const { error } = await supabaseClient.from('users').delete().eq('id', user.id);
         if (error) { alert('删除失败：' + error.message); return; }
-        await loadUsers();
+        if (isSelfDelete) {
+          handleLogout();
+        } else {
+          await loadUsers();
+        }
       } catch(e) {
         alert('删除失败：' + e.message);
       }
@@ -2058,36 +2100,37 @@ createApp({
       dataFromFile.value = loaded.fromFile;
       if (data.value.roster.length===0 && data.value.courses.length===0) {
         const today = todayStr.value;
+        const demoTeacher = currentUser.value?.username || 'admin';
         data.value.roster = [
-          { id:'2024001', name:'张小明', gender:'男', birth:'2016-03-12', parent:'张伟', phone:'13800001111', address:'阳光花园3栋201', note:'' },
-          { id:'2024002', name:'李雨涵', gender:'女', birth:'2015-11-05', parent:'李强', phone:'13800002222', address:'翠竹苑5栋102', note:'Scratch一级在读' },
-          { id:'2024003', name:'王浩然', gender:'男', birth:'2016-07-20', parent:'王建国', phone:'13800003333', address:'碧水湾2栋501', note:'' },
-          { id:'2024004', name:'陈思琪', gender:'女', birth:'2015-04-18', parent:'陈明', phone:'13800004444', address:'锦绣花园1栋302', note:'Python二级' },
+          { id:'2024001', name:'张小明', gender:'男', birth:'2016-03-12', parent:'张伟', phone:'13800001111', address:'阳光花园3栋201', note:'', teacher: demoTeacher },
+          { id:'2024002', name:'李雨涵', gender:'女', birth:'2015-11-05', parent:'李强', phone:'13800002222', address:'翠竹苑5栋102', note:'Scratch一级在读', teacher: demoTeacher },
+          { id:'2024003', name:'王浩然', gender:'男', birth:'2016-07-20', parent:'王建国', phone:'13800003333', address:'碧水湾2栋501', note:'', teacher: demoTeacher },
+          { id:'2024004', name:'陈思琪', gender:'女', birth:'2015-04-18', parent:'陈明', phone:'13800004444', address:'锦绣花园1栋302', note:'Python二级', teacher: demoTeacher },
         ];
         data.value.courses = [
-          { id:'c1', type:'member', studentName:'张小明', time:'14:00-15:30', date:today },
-          { id:'c2', type:'member', studentName:'李雨涵', time:'14:00-15:30', date:today },
-          { id:'c3', type:'member', studentName:'王浩然', time:'16:00-17:30', date:today },
-          { id:'c4', type:'contest', studentName:'陈思琪', time:'09:00-11:00', date:today },
-          { id:'c5', type:'contest', studentName:'张小明', time:'09:00-11:00', date:today },
-          { id:'c6', type:'holiday', studentName:'李雨涵', time:'10:00-12:00', date:today },
-          { id:'c7', type:'outing', studentName:'王浩然', time:'14:00-16:00', date:today },
+          { id:'c1', type:'member', studentName:'张小明', time:'14:00-15:30', date:today, teacher: demoTeacher },
+          { id:'c2', type:'member', studentName:'李雨涵', time:'14:00-15:30', date:today, teacher: demoTeacher },
+          { id:'c3', type:'member', studentName:'王浩然', time:'16:00-17:30', date:today, teacher: demoTeacher },
+          { id:'c4', type:'contest', studentName:'陈思琪', time:'09:00-11:00', date:today, teacher: demoTeacher },
+          { id:'c5', type:'contest', studentName:'张小明', time:'09:00-11:00', date:today, teacher: demoTeacher },
+          { id:'c6', type:'holiday', studentName:'李雨涵', time:'10:00-12:00', date:today, teacher: demoTeacher },
+          { id:'c7', type:'outing', studentName:'王浩然', time:'14:00-16:00', date:today, teacher: demoTeacher },
         ];
         data.value.progresses = [
-          { id:'p1', studentName:'张小明', age:10, subject:'Scratch', level:'二级', courses:['海底世界','守门大战','超声蝙蝠挑战'] },
-          { id:'p2', studentName:'李雨涵', age:9, subject:'Scratch', level:'一级', courses:['小猫散步','魔法画笔'] },
-          { id:'p3', studentName:'王浩然', age:10, subject:'Python', level:'二级', courses:['猜数字游戏','天气查询器'] },
-          { id:'p4', studentName:'陈思琪', age:11, subject:'Python', level:'二级', courses:['贪吃蛇','简易计算器'] },
-          { id:'p5', studentName:'张小明', age:10, subject:'EV3', level:'初级', courses:['小车巡线','颜色分拣'] },
+          { id:'p1', studentName:'张小明', age:10, subject:'Scratch', level:'二级', courses:['海底世界','守门大战','超声蝙蝠挑战'], teacher: demoTeacher },
+          { id:'p2', studentName:'李雨涵', age:9, subject:'Scratch', level:'一级', courses:['小猫散步','魔法画笔'], teacher: demoTeacher },
+          { id:'p3', studentName:'王浩然', age:10, subject:'Python', level:'二级', courses:['猜数字游戏','天气查询器'], teacher: demoTeacher },
+          { id:'p4', studentName:'陈思琪', age:11, subject:'Python', level:'二级', courses:['贪吃蛇','简易计算器'], teacher: demoTeacher },
+          { id:'p5', studentName:'张小明', age:10, subject:'EV3', level:'初级', courses:['小车巡线','颜色分拣'], teacher: demoTeacher },
         ];
         data.value.meals = [
-          { id:'m1', date:'2026-07-28', amount:25, month:7 },
-          { id:'m2', date:'2026-07-29', amount:30, month:7 },
-          { id:'m3', date:'2026-07-30', amount:25, month:7 },
+          { id:'m1', date:'2026-07-28', amount:25, month:7, teacher: demoTeacher },
+          { id:'m2', date:'2026-07-29', amount:30, month:7, teacher: demoTeacher },
+          { id:'m3', date:'2026-07-30', amount:25, month:7, teacher: demoTeacher },
         ];
         data.value.reimbursements = [
-          { id:'r1', category:'教材', amount:158, date:'2026-07-25', status:'已审批', proof:'教材发票.jpg' },
-          { id:'r2', category:'交通', amount:86, date:'2026-07-28', status:'待审批', proof:'' },
+          { id:'r1', category:'教材', amount:158, date:'2026-07-25', status:'已审批', proof:'教材发票.jpg', teacher: demoTeacher },
+          { id:'r2', category:'交通', amount:86, date:'2026-07-28', status:'待审批', proof:'', teacher: demoTeacher },
         ];
         saveDataToFile(data.value);
       }
@@ -2120,29 +2163,29 @@ createApp({
 
     // 体验课提成
     const trialMonthRecords = computed(() =>
-      data.value.trialCommissions.filter(r => r.month === commissionMonth.value)
+      teacherData.value.trialCommissions.filter(r => r.month === commissionMonth.value)
     );
     const trialMonthTotal = computed(() =>
       trialMonthRecords.value.reduce((s,r) => s + r.commissionAmount, 0)
     );
     const trialAllTotal = computed(() =>
-      data.value.trialCommissions.reduce((s,r) => s + r.commissionAmount, 0)
+      teacherData.value.trialCommissions.reduce((s,r) => s + r.commissionAmount, 0)
     );
 
     // 新招或续费提成
     const enrollmentMonthRecords = computed(() =>
-      data.value.enrollmentCommissions.filter(r => r.month === commissionMonth.value)
+      teacherData.value.enrollmentCommissions.filter(r => r.month === commissionMonth.value)
     );
     const enrollmentMonthTotal = computed(() =>
       enrollmentMonthRecords.value.reduce((s,r) => s + r.commissionAmount, 0)
     );
     const enrollmentAllTotal = computed(() =>
-      data.value.enrollmentCommissions.reduce((s,r) => s + r.commissionAmount, 0)
+      teacherData.value.enrollmentCommissions.reduce((s,r) => s + r.commissionAmount, 0)
     );
 
     // 全部合并
     const allCommissionRecords = computed(() =>
-      [...data.value.trialCommissions, ...data.value.enrollmentCommissions]
+      [...teacherData.value.trialCommissions, ...teacherData.value.enrollmentCommissions]
     );
     const allCommissionMonthRecords = computed(() =>
       allCommissionRecords.value.filter(r => r.month === commissionMonth.value)
@@ -2160,10 +2203,10 @@ createApp({
       let records = [];
       let title = '';
       if (type === 'trial') {
-        records = scope === 'month' ? trialMonthRecords.value : data.value.trialCommissions;
+        records = scope === 'month' ? trialMonthRecords.value : teacherData.value.trialCommissions;
         title = (scope === 'month' ? commissionMonthLabel.value + ' ' : '') + '体验课提成';
       } else if (type === 'enrollment') {
-        records = scope === 'month' ? enrollmentMonthRecords.value : data.value.enrollmentCommissions;
+        records = scope === 'month' ? enrollmentMonthRecords.value : teacherData.value.enrollmentCommissions;
         title = (scope === 'month' ? commissionMonthLabel.value + ' ' : '') + '新招/续费提成';
       } else {
         records = scope === 'month' ? allCommissionMonthRecords.value : allCommissionRecords.value;
@@ -2199,7 +2242,8 @@ createApp({
         data.value[key].push({
           id: genCommId(), type: actualType,
           month: e.month, studentName: e.studentName.trim(),
-          packageAmount: e.packageAmount || 0, commissionAmount: e.commissionAmount || 0
+          packageAmount: e.packageAmount || 0, commissionAmount: e.commissionAmount || 0,
+          teacher: currentUser.value?.username || ''
         });
       }
       saveDataToFile(data.value);
@@ -2240,7 +2284,7 @@ createApp({
       ctx.scale(dpr, dpr);
 
       // 汇总每月提成
-      const all = [...data.value.trialCommissions, ...data.value.enrollmentCommissions];
+      const all = [...teacherData.value.trialCommissions, ...teacherData.value.enrollmentCommissions];
       const monthMap = {};
       all.forEach(r => { monthMap[r.month] = (monthMap[r.month]||0) + r.commissionAmount; });
       let months = Object.keys(monthMap).sort();
@@ -2345,7 +2389,7 @@ createApp({
       sidebarCollapsed, currentPage, studentTab, viewMode,
       navItems, courseTypes, subjects,
       todayStr, weekdayStr, currentMonth, currentNav,
-      data, dataFromFile,
+      data, teacherData, dataFromFile,
       rosterSearch, rosterGenderFilter, rosterSort,
       modalCourse, modalCourseEdit, editingCourse,
       modalMeal, modalMealEdit, editingMeal, mealsByViewMonth, mealViewMonthTotal,
@@ -2385,7 +2429,7 @@ createApp({
       // 登录认证
       isLoggedIn, currentUser, loginForm, loginError, loginLoading, handleLogin, handleLogout,
       // 账号管理
-      users, accountModal, accountForm, accountLoading, loadUsers, openAddAccount, openEditPassword, saveAccount, deleteAccount,
+      users, filteredUsers, accountModal, accountForm, accountLoading, loadUsers, openAddAccount, openEditPassword, saveAccount, deleteAccount,
     };
   }
 }).mount('#app');
