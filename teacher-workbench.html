@@ -287,6 +287,41 @@ tr:hover td { background:#fafcfb; }
   .modal-footer { padding: 10px 14px; }
   .commission-detail-table { min-width: 500px; }
 }
+
+/* ===== 登录覆盖层 ===== */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(135deg, #e8f5ee 0%, #eaf2f8 50%, #f0f7f2 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-box {
+  background: #fff; border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+  padding: 40px 36px; width: 380px; max-width: 90vw;
+}
+.login-box h2 { text-align: center; margin-bottom: 8px; font-size: 22px; color: var(--text); }
+.login-box .login-subtitle { text-align: center; font-size: 13px; color: var(--text-light); margin-bottom: 28px; }
+.login-box .form-group { margin-bottom: 16px; }
+.login-box .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.login-box .form-group input {
+  width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px;
+  font-size: 14px; outline: none; transition: border-color 0.2s;
+}
+.login-box .form-group input:focus { border-color: var(--primary); }
+.login-box .btn-login {
+  width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none;
+  border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 4px;
+  transition: background 0.2s;
+}
+.login-box .btn-login:hover { background: #6ab88f; }
+.login-box .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-box .login-error {
+  color: #c53030; font-size: 13px; text-align: center; margin-top: 12px; min-height: 20px;
+}
+
+/* ===== 账号管理 ===== */
+.account-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.account-info { margin-bottom: 16px; padding: 10px 14px; background: var(--primary-light); border-radius: 8px; font-size: 13px; display: flex; align-items: center; }
+.account-info strong { color: var(--primary); }
 </style>
 </head>
 <body>
@@ -296,8 +331,28 @@ tr:hover td { background:#fafcfb; }
 <script>window.onerror=function(m){document.getElementById('loading').innerHTML='<div style="text-align:center;color:#c53030;"><p>加载失败</p><p style="font-size:13px;">'+m+'</p></div>';};</script>
 <div id="app"></div>
 <script type="text/x-template" id="app-tpl">
+  <!-- ==================== 登录覆盖层 ==================== -->
+  <div v-if="!isLoggedIn" class="login-overlay">
+    <div class="login-box">
+      <h2>教师工作台</h2>
+      <p class="login-subtitle">请输入账号密码登录</p>
+      <div class="form-group">
+        <label>账号</label>
+        <input type="text" v-model="loginForm.username" @keyup.enter="handleLogin" placeholder="请输入账号" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" v-model="loginForm.password" @keyup.enter="handleLogin" placeholder="请输入密码" autocomplete="current-password" />
+      </div>
+      <button class="btn-login" @click="handleLogin" :disabled="loginLoading">
+        {{ loginLoading ? '登录中...' : '登 录' }}
+      </button>
+      <div class="login-error">{{ loginError }}</div>
+    </div>
+  </div>
+
   <!-- 侧边栏 -->
-  <nav :class="['sidebar', { collapsed: sidebarCollapsed }]">
+  <nav v-if="isLoggedIn" :class="['sidebar', { collapsed: sidebarCollapsed }]">
     <div class="sidebar-header">
       <div class="logo">T</div>
       <span class="title">教师工作台</span>
@@ -325,7 +380,7 @@ tr:hover td { background:#fafcfb; }
   </nav>
 
   <!-- 主内容 -->
-  <div :class="['main', { expanded: sidebarCollapsed }]">
+  <div v-if="isLoggedIn" :class="['main', { expanded: sidebarCollapsed }]">
     <div class="page-header">
       <h1>{{ currentNav.label }}</h1>
       <div class="date-info">{{ todayStr }} · {{ weekdayStr }}</div>
@@ -750,6 +805,64 @@ tr:hover td { background:#fafcfb; }
             <div class="modal-footer">
               <button class="btn btn-outline" @click="commEdit.show=false">取消</button>
               <button class="btn btn-primary" @click="saveCommission">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 账号管理 ==================== -->
+      <div v-if="currentPage==='accounts'">
+        <div class="account-info">
+          当前登录：<strong>{{ currentUser?.username }}</strong>
+          <button class="btn btn-outline btn-sm" @click="handleLogout" style="margin-left:16px;">退出登录</button>
+        </div>
+        <div class="account-toolbar">
+          <button class="btn btn-primary btn-sm" @click="openAddAccount">+ 新增账号</button>
+          <button class="btn btn-outline btn-sm" @click="loadUsers">刷新列表</button>
+        </div>
+        <div class="card" style="overflow-x:auto;">
+          <table v-if="users.length">
+            <thead>
+              <tr><th>ID</th><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in users" :key="u.id">
+                <td>{{ u.id }}</td>
+                <td>{{ u.username }}</td>
+                <td>{{ u.role || 'user' }}</td>
+                <td>{{ u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-' }}</td>
+                <td>
+                  <button class="btn btn-outline btn-sm" @click="openEditPassword(u)">修改密码</button>
+                  <button class="btn btn-danger btn-sm" @click="deleteAccount(u)" :disabled="u.username==='admin'">删除</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else style="text-align:center;padding:30px;color:var(--text-light);">
+            {{ accountLoading ? '加载中...' : '暂无账号数据' }}
+          </div>
+        </div>
+
+        <!-- 账号编辑弹窗 -->
+        <div class="modal-overlay" v-if="accountModal" @click.self="accountModal=false">
+          <div class="modal">
+            <div class="modal-header">
+              <h3>{{ accountForm.isNew ? '新增账号' : '修改密码' }}</h3>
+              <button class="modal-close" @click="accountModal=false">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-group">
+                <label>用户名</label>
+                <input v-model="accountForm.username" :disabled="!accountForm.isNew" placeholder="请输入用户名" />
+              </div>
+              <div class="form-group">
+                <label>{{ accountForm.isNew ? '密码' : '新密码' }}</label>
+                <input type="password" v-model="accountForm.password" placeholder="请输入密码" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline" @click="accountModal=false">取消</button>
+              <button class="btn btn-primary" @click="saveAccount">保存</button>
             </div>
           </div>
         </div>
@@ -1229,10 +1342,24 @@ createApp({
     const studentTab = ref('roster');
     const viewMode = ref('table');
 
+    // ===== 登录认证状态 =====
+    const isLoggedIn = ref(false);
+    const currentUser = ref(null);
+    const loginForm = ref({ username: '', password: '' });
+    const loginError = ref('');
+    const loginLoading = ref(false);
+    const SESSION_KEY = 'teacher_workbench_session';
+
     // 花名册筛选
     const rosterSearch = ref('');
     const rosterGenderFilter = ref('');
     const rosterSort = ref('id');
+
+    // ===== 账号管理状态 =====
+    const users = ref([]);
+    const accountModal = ref(false);
+    const accountForm = ref({ id: null, username: '', password: '', isNew: true });
+    const accountLoading = ref(false);
 
     // 弹窗状态
     const modalCourse = ref(null);
@@ -1259,6 +1386,7 @@ createApp({
       { key:'schedule', label:'课程表', icon:'📅' },
       { key:'students', label:'学生管理', icon:'👥' },
       { key:'commission', label:'提成管理', icon:'💰' },
+      { key:'accounts', label:'账号管理', icon:'🔑' },
     ];
 
     const courseTypes = [
@@ -1786,8 +1914,133 @@ createApp({
       saveDataToFile(data.value);
     };
 
+    // ===== 登录认证函数 =====
+    function checkLocalSession() {
+      try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return false;
+        const session = JSON.parse(raw);
+        const now = Date.now();
+        if (session.expiresAt && now < session.expiresAt) {
+          currentUser.value = session.user;
+          isLoggedIn.value = true;
+          return true;
+        }
+        localStorage.removeItem(SESSION_KEY);
+      } catch(e) {}
+      return false;
+    }
+
+    async function handleLogin() {
+      const { username, password } = loginForm.value;
+      if (!username.trim() || !password.trim()) {
+        loginError.value = '请输入账号和密码';
+        return;
+      }
+      loginLoading.value = true;
+      loginError.value = '';
+      try {
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .eq('username', username.trim())
+          .eq('password', password)
+          .single();
+        if (error || !data) {
+          loginError.value = '账号或密码错误';
+        } else {
+          currentUser.value = { username: data.username, role: data.role || 'user' };
+          isLoggedIn.value = true;
+          localStorage.setItem(SESSION_KEY, JSON.stringify({
+            user: currentUser.value,
+            expiresAt: Date.now() + 24 * 60 * 60 * 1000
+          }));
+          loadUsers();
+        }
+      } catch(e) {
+        loginError.value = '登录失败，请检查网络连接';
+      }
+      loginLoading.value = false;
+    }
+
+    function handleLogout() {
+      isLoggedIn.value = false;
+      currentUser.value = null;
+      localStorage.removeItem(SESSION_KEY);
+      loginForm.value = { username: '', password: '' };
+      currentPage.value = 'ledger';
+    }
+
+    // ===== 账号管理函数 =====
+    async function loadUsers() {
+      accountLoading.value = true;
+      try {
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error) users.value = data || [];
+      } catch(e) {}
+      accountLoading.value = false;
+    }
+
+    function openAddAccount() {
+      accountForm.value = { id: null, username: '', password: '', isNew: true };
+      accountModal.value = true;
+    }
+
+    function openEditPassword(user) {
+      accountForm.value = { id: user.id, username: user.username, password: '', isNew: false };
+      accountModal.value = true;
+    }
+
+    async function saveAccount() {
+      const { id, username, password, isNew } = accountForm.value;
+      if (!username.trim() || !password.trim()) {
+        alert('账号和密码不能为空');
+        return;
+      }
+      try {
+        if (isNew) {
+          const { error } = await supabaseClient.from('users').insert({
+            username: username.trim(),
+            password: password,
+            role: 'user'
+          });
+          if (error) { alert('创建失败：' + error.message); return; }
+        } else {
+          const { error } = await supabaseClient.from('users').update({
+            password: password
+          }).eq('id', id);
+          if (error) { alert('修改失败：' + error.message); return; }
+        }
+        accountModal.value = false;
+        await loadUsers();
+      } catch(e) {
+        alert('操作失败：' + e.message);
+      }
+    }
+
+    async function deleteAccount(user) {
+      if (user.username === 'admin') {
+        alert('管理员账号不可删除');
+        return;
+      }
+      if (!confirm(`确定删除账号「${user.username}」吗？此操作不可恢复。`)) return;
+      try {
+        const { error } = await supabaseClient.from('users').delete().eq('id', user.id);
+        if (error) { alert('删除失败：' + error.message); return; }
+        await loadUsers();
+      } catch(e) {
+        alert('删除失败：' + e.message);
+      }
+    }
+
     // 初始化演示数据
     onMounted(async () => {
+      // 先检查登录会话
+      const hasSession = checkLocalSession();
+
       const loaded = await loadData();
       data.value = loaded.data;
       dataFromFile.value = loaded.fromFile;
@@ -1826,6 +2079,8 @@ createApp({
         ];
         saveDataToFile(data.value);
       }
+      // 已登录则加载用户列表
+      if (isLoggedIn.value) loadUsers();
     });
 
     // ==================== 提成管理 ====================
@@ -2115,6 +2370,10 @@ createApp({
       commissionChartRef,
       // 数据文件管理
       dataFromFile, setupDataFileHandler, exportData,
+      // 登录认证
+      isLoggedIn, currentUser, loginForm, loginError, loginLoading, handleLogin, handleLogout,
+      // 账号管理
+      users, accountModal, accountForm, accountLoading, loadUsers, openAddAccount, openEditPassword, saveAccount, deleteAccount,
     };
   }
 }).mount('#app');
