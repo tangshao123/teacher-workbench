@@ -73,6 +73,21 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .reimburse-card .card-amount { font-size:18px; font-weight:700; color:#e08b5a; }
 .reimburse-card .card-detail { font-size:12px; color:var(--text-light); }
 
+/* 记账台-大汇总卡片 */
+.ledger-summary-card { background:var(--primary); color:#fff; border-radius:12px; padding:28px 32px; margin-bottom:20px; text-align:center; }
+.ledger-summary-label { font-size:14px; opacity:0.85; margin-bottom:8px; }
+.ledger-summary-count { font-size:36px; font-weight:700; margin-bottom:6px; }
+.ledger-summary-sub { font-size:13px; opacity:0.75; }
+
+/* 记账台-按科目分组 */
+.ledger-groups { display:flex; flex-direction:column; gap:12px; margin-bottom:28px; }
+.ledger-group { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+.ledger-group-header { display:flex; align-items:center; gap:10px; padding:14px 18px; background:var(--bg); border-bottom:1px solid var(--border); }
+.ledger-group-icon { font-size:20px; }
+.ledger-group-title { font-size:14px; font-weight:600; flex:1; }
+.ledger-group-count { font-size:13px; font-weight:600; color:var(--primary); background:var(--primary-light); padding:2px 10px; border-radius:10px; }
+.ledger-group-body { padding:14px 18px; font-size:14px; line-height:2; }
+
 /* 弹窗/详情面板 */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; display:flex; align-items:center; justify-content:center; }
 .modal { background:var(--card); border-radius:var(--radius); box-shadow:0 8px 40px rgba(0,0,0,0.15); width:90%; max-width:640px; max-height:80vh; display:flex; flex-direction:column; }
@@ -163,10 +178,15 @@ tr:hover td { background:#fafcfb; }
 .schedule-course .course-time { font-weight:600; display:block; }
 .schedule-course .course-student { display:block; }
 .schedule-course .course-type-tag { font-size:10px; background:rgba(255,255,255,0.7); border-radius:3px; padding:0 4px; }
-.course-member { background:#c8e6c9; }
-.course-contest { background:#ffe0b2; }
-.course-holiday { background:#bbdefb; }
-.course-outing { background:#e1bee7; }
+.course-big_particle { background:#c8e6c9; }
+.course-small_particle { background:#ffe0b2; }
+.course-wedo { background:#bbdefb; }
+.course-ev3 { background:#e1bee7; }
+.course-arduino { background:#fff9c4; }
+.course-scratch { background:#ffccbc; }
+.course-python { background:#d1c4e9; }
+.course-cpp { background:#b2dfdb; }
+.course-other { background:#cfd8dc; }
 .schedule-empty { font-size:11px; color:var(--text-light); text-align:center; padding:8px 0; }
 
 /* 统计 */
@@ -225,7 +245,7 @@ tr:hover td { background:#fafcfb; }
 
 /* 侧边栏底部：数据导出/导入 */
 .sidebar-footer { padding:12px 14px; border-top:1px solid rgba(255,255,255,0.15); margin-top:auto; }
-.data-status { display:flex; align-items:center; gap:6px; font-size:11px; color:rgba(255,255,255,0.7); margin-bottom:8px; }
+.data-status { display:flex; align-items:center; gap:6px; font-size:11px; color:#3a6b4f; margin-bottom:8px; }
 .data-status .status-dot { width:7px; height:7px; border-radius:50%; background:#7ec8a0; flex-shrink:0; }
 .data-status.no-file .status-dot { background:#e0a060; }
 .sidebar-footer .btn-data { display:block; width:100%; padding:8px 0; margin-bottom:6px; border:1px solid rgba(255,255,255,0.3); border-radius:8px; background:transparent; color:rgba(255,255,255,0.85); font-size:13px; cursor:pointer; transition:all 0.2s; text-align:center; }
@@ -399,32 +419,30 @@ tr:hover td { background:#fafcfb; }
           <span class="stats-month-label">{{ courseViewDateLabel }}</span>
           <button class="btn btn-outline btn-sm" @click="nextCourseViewDate">&gt;</button>
           <button class="btn btn-outline btn-sm" @click="goTodayCourseView">今天</button>
+          <button class="btn btn-primary btn-sm" @click="addCourseFromLedger" style="margin-left:8px;">+ 新增课时</button>
         </div>
-        <div class="course-cards">
-          <div class="card course-card" v-for="c in courseTypes" :key="c.key" @click="openCourseDetail(c)">
-            <div class="card-icon">{{ c.icon }}</div>
-            <div class="card-label">{{ c.label }}</div>
-            <div class="card-count">{{ getCourseCountByDate(c.key) }} 人</div>
-            <div class="card-sub">{{ courseViewDateLabel }}</div>
+        <!-- 大汇总卡片 -->
+        <div class="ledger-summary-card">
+          <div class="ledger-summary-label">今日共教</div>
+          <div class="ledger-summary-count">{{ ledgerTodayTotalStudents }} 名学生</div>
+          <div class="ledger-summary-sub">{{ courseViewDateLabel }} · {{ ledgerTodayTotalCourses }} 节课</div>
+        </div>
+        <!-- 按科目分组 -->
+        <div class="ledger-groups" v-if="ledgerTodayGrouped.length>0">
+          <div v-for="g in ledgerTodayGrouped" :key="g.key" class="ledger-group">
+            <div class="ledger-group-header">
+              <span class="ledger-group-icon">{{ g.icon }}</span>
+              <span class="ledger-group-title">{{ g.label }}</span>
+              <span class="ledger-group-count">{{ g.students.length }} 人</span>
+            </div>
+            <div class="ledger-group-body">
+              <span v-for="(s, i) in g.students" :key="s.name">
+                <a class="student-link" @click="openLedgerStudentDetail(s.name)">{{ s.name }}</a><span v-if="i < g.students.length - 1">、</span>
+              </span>
+            </div>
           </div>
         </div>
-
-        <!-- 本月统计 -->
-        <div class="section-title">本月统计</div>
-        <div class="stats-toolbar">
-          <button class="btn btn-outline btn-sm" @click="prevStatsMonth">&lt;</button>
-          <span class="stats-month-label">{{ statsMonthLabel }}</span>
-          <button class="btn btn-outline btn-sm" @click="nextStatsMonth">&gt;</button>
-          <button class="btn btn-outline btn-sm" @click="goCurrentStatsMonth">本月</button>
-        </div>
-        <div class="course-cards">
-          <div class="card course-card" @click="openMonthStats">
-            <div class="card-icon">👨‍🎓</div>
-            <div class="card-label">本月上课学员</div>
-            <div class="card-count">{{ monthlyStudentCount }} 人</div>
-            <div class="card-sub">{{ statsMonthLabel }} · {{ monthlyCoursesForStats.length }} 节课</div>
-          </div>
-        </div>
+        <div v-else style="text-align:center;padding:30px;color:var(--text-light);font-size:14px;">{{ courseViewDateLabel }}暂无课时记录</div>
 
         <!-- 餐补与报销 -->
         <div class="section-title">餐补与报销</div>
@@ -911,17 +929,48 @@ tr:hover td { background:#fafcfb; }
         <button class="modal-close" @click="modalCourseEdit=null">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="form-group"><label>学员姓名</label><input v-model="editingCourse.studentName"></div>
-        <div class="form-group"><label>上课时间（如 14:00-15:30）</label><input v-model="editingCourse.time"></div>
-        <div class="form-group"><label>课程类型</label>
-          <select v-model="editingCourse.type">
-            <option v-for="c in courseTypes" :key="c.key" :value="c.key">{{ c.label }}</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group"><label>学员姓名</label><input v-model="editingCourse.studentName"></div>
+          <div class="form-group"><label>上课日期</label><input type="date" v-model="editingCourse.date"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>上课时间（如 14:00-15:30）</label><input v-model="editingCourse.time" placeholder="如 14:00-15:30"></div>
+          <div class="form-group"><label>课程类型</label>
+            <select v-model="editingCourse.type">
+              <option v-for="c in courseTypeOptions" :key="c.key" :value="c.key">{{ c.label }}</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" @click="modalCourseEdit=null">取消</button>
         <button class="btn btn-primary" @click="saveCourse">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：记账台学员课程详情 -->
+  <div class="modal-overlay" v-if="modalLedgerStudent" @click.self="modalLedgerStudent=false">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>学员课程详情</h3>
+        <button class="modal-close" @click="modalLedgerStudent=false">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div v-if="ledgerStudentDetail" style="margin-bottom:16px;font-size:14px;">
+          <strong>{{ ledgerStudentDetail.name }}</strong>
+          <span v-if="ledgerStudentDetail.age" style="color:var(--text-light);"> {{ ledgerStudentDetail.age }}岁</span>
+        </div>
+        <div v-if="!ledgerStudentDetail || ledgerStudentDetail.courses.length===0" style="text-align:center;padding:30px;color:var(--text-light);">该日期暂无该学员的课程记录</div>
+        <table v-else>
+          <thead><tr><th>课程类型</th><th>上课时间</th></tr></thead>
+          <tbody>
+            <tr v-for="c in ledgerStudentDetail.courses" :key="c.id">
+              <td>{{ getCourseTypeLabel(c.type) }}</td>
+              <td>{{ c.time }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -1339,10 +1388,27 @@ createApp({
     ];
 
     const courseTypes = [
-      { key:'member', label:'会员课时', icon:'📚' },
-      { key:'contest', label:'比赛集训', icon:'🏆' },
-      { key:'holiday', label:'假期班', icon:'🌴' },
-      { key:'outing', label:'外派研学', icon:'🚌' },
+      { key:'big_particle', label:'大颗粒', icon:'🧱' },
+      { key:'small_particle', label:'小颗粒', icon:'🧩' },
+      { key:'wedo', label:'Wedo', icon:'🤖' },
+      { key:'ev3', label:'Ev3', icon:'🔧' },
+      { key:'arduino', label:'Arduino', icon:'💡' },
+      { key:'scratch', label:'Scratch', icon:'🐱' },
+      { key:'python', label:'Python', icon:'🐍' },
+      { key:'cpp', label:'C++', icon:'⚡' },
+      { key:'other', label:'其他', icon:'📦' },
+    ];
+
+    const courseTypeOptions = [
+      { key:'big_particle', label:'大颗粒' },
+      { key:'small_particle', label:'小颗粒' },
+      { key:'wedo', label:'Wedo' },
+      { key:'ev3', label:'Ev3' },
+      { key:'arduino', label:'Arduino' },
+      { key:'scratch', label:'Scratch' },
+      { key:'python', label:'Python' },
+      { key:'cpp', label:'C++' },
+      { key:'other', label:'其他' },
     ];
 
     const subjects = ['小颗粒','Wedo','EV3','Arduino','Scratch','Python','C++'];
@@ -1353,6 +1419,7 @@ createApp({
       { label:'10:00-12:00', start:10, end:12 },
       { label:'14:00-16:00', start:14, end:16 },
       { label:'16:00-18:00', start:16, end:18 },
+      { label:'18:00-20:00', start:18, end:20 },
     ];
     const scheduleWeekStart = ref(getMonday(new Date()));
 
@@ -1406,7 +1473,7 @@ createApp({
     }
 
     function getCourseTypeLabel(type) {
-      const m = { member:'会员', contest:'集训', holiday:'假期', outing:'研学' };
+      const m = { member:'会员', contest:'集训', holiday:'假期', outing:'研学', big_particle:'大颗粒', small_particle:'小颗粒', wedo:'Wedo', ev3:'Ev3', arduino:'Arduino', scratch:'Scratch', python:'Python', cpp:'C++', other:'其他' };
       return m[type] || type;
     }
 
@@ -1425,7 +1492,7 @@ createApp({
     }
 
     function addCourseFromSchedule(date) {
-      editingCourse.value = { id:'', studentName:'', time:'', type:'member', date };
+      editingCourse.value = { id:'', studentName:'', time:'', type:'big_particle', date };
       modalCourseEdit.value = true;
     }
 
@@ -1480,10 +1547,58 @@ createApp({
     }
     function openMonthStats() { modalMonthStats.value = true; }
     function addCourseFromMonthStats() {
-      const m = String(statsMonthNum.value).padStart(2,'0');
-      editingCourse.value = { id:'', studentName:'', time:'', type:'member', date:`${statsYear.value}-${m}-01` };
+      editingCourse.value = { id:'', studentName:'', time:'', type:'big_particle', date: todayDateStr() };
       modalCourseEdit.value = true;
     }
+
+    // ===== 记账台-今日课程汇总 =====
+    const modalLedgerStudent = ref(false);
+    const ledgerStudentName = ref('');
+
+    const ledgerTodayCourses = computed(() => {
+      return teacherData.value.courses.filter(c => c.date === courseViewDate.value);
+    });
+
+    const ledgerTodayGrouped = computed(() => {
+      const groups = {};
+      courseTypes.forEach(ct => { groups[ct.key] = { ...ct, studentsMap: {} }; });
+      ledgerTodayCourses.value.forEach(c => {
+        if (groups[c.type] && !groups[c.type].studentsMap[c.studentName]) {
+          groups[c.type].studentsMap[c.studentName] = { name: c.studentName };
+        }
+      });
+      return courseTypes.map(ct => ({
+        key: ct.key, label: ct.label, icon: ct.icon,
+        students: Object.values(groups[ct.key].studentsMap)
+      })).filter(g => g.students.length > 0);
+    });
+
+    const ledgerTodayTotalStudents = computed(() => {
+      const names = new Set(ledgerTodayCourses.value.map(c => c.studentName));
+      return names.size;
+    });
+
+    const ledgerTodayTotalCourses = computed(() => ledgerTodayCourses.value.length);
+
+    const ledgerStudentDetail = computed(() => {
+      if (!ledgerStudentName.value) return null;
+      const courses = teacherData.value.courses.filter(
+        c => c.studentName === ledgerStudentName.value && c.date === courseViewDate.value
+      );
+      if (courses.length === 0) return null;
+      const ageRecord = teacherData.value.roster.find(r => r.studentName === ledgerStudentName.value);
+      return { name: ledgerStudentName.value, age: ageRecord ? ageRecord.age : '', courses };
+    });
+
+    const openLedgerStudentDetail = (name) => {
+      ledgerStudentName.value = name;
+      modalLedgerStudent.value = true;
+    };
+
+    const addCourseFromLedger = () => {
+      editingCourse.value = { id:'', studentName:'', time:'', type:'big_particle', date: courseViewDate.value };
+      modalCourseEdit.value = true;
+    };
 
     const todayStr = computed(() => todayDateStr());
     const weekdayStr = computed(() => {
@@ -1540,12 +1655,18 @@ createApp({
     const saveCourse = () => {
       const c = editingCourse.value;
       if (!c.studentName || !c.time) return;
+      if (!c.date) c.date = courseViewDate.value;
       if (c.id) {
         const idx = data.value.courses.findIndex(x => x.id===c.id);
-        if (idx>=0) data.value.courses[idx] = { ...c };
+        if (idx>=0) {
+          const updatedCourses = [...data.value.courses];
+          updatedCourses[idx] = { ...c, teacher: c.teacher || currentUser.value?.username || '' };
+          data.value.courses = updatedCourses;
+        }
       } else {
         c.id = 'c_' + Date.now();
-        data.value.courses.push({ ...c, teacher: currentUser.value?.username || '' });
+        const newCourse = { id: c.id, studentName: c.studentName, time: c.time, type: c.type, date: c.date, teacher: currentUser.value?.username || '' };
+        data.value.courses = [...data.value.courses, newCourse];
       }
       saveDataToFile(data.value);
       modalCourseEdit.value = false;
@@ -2037,13 +2158,13 @@ createApp({
           { id:'2024004', name:'陈思琪', gender:'女', birth:'2015-04-18', parent:'陈明', phone:'13800004444', address:'锦绣花园1栋302', note:'Python二级', teacher: demoTeacher },
         ];
         data.value.courses = [
-          { id:'c1', type:'member', studentName:'张小明', time:'14:00-15:30', date:today, teacher: demoTeacher },
-          { id:'c2', type:'member', studentName:'李雨涵', time:'14:00-15:30', date:today, teacher: demoTeacher },
-          { id:'c3', type:'member', studentName:'王浩然', time:'16:00-17:30', date:today, teacher: demoTeacher },
-          { id:'c4', type:'contest', studentName:'陈思琪', time:'09:00-11:00', date:today, teacher: demoTeacher },
-          { id:'c5', type:'contest', studentName:'张小明', time:'09:00-11:00', date:today, teacher: demoTeacher },
-          { id:'c6', type:'holiday', studentName:'李雨涵', time:'10:00-12:00', date:today, teacher: demoTeacher },
-          { id:'c7', type:'outing', studentName:'王浩然', time:'14:00-16:00', date:today, teacher: demoTeacher },
+          { id:'c1', type:'big_particle', studentName:'张小明', time:'14:00-15:30', date:today, teacher: demoTeacher },
+          { id:'c2', type:'small_particle', studentName:'李雨涵', time:'14:00-15:30', date:today, teacher: demoTeacher },
+          { id:'c3', type:'scratch', studentName:'王浩然', time:'16:00-17:30', date:today, teacher: demoTeacher },
+          { id:'c4', type:'python', studentName:'陈思琪', time:'09:00-11:00', date:today, teacher: demoTeacher },
+          { id:'c5', type:'wedo', studentName:'张小明', time:'09:00-11:00', date:today, teacher: demoTeacher },
+          { id:'c6', type:'cpp', studentName:'李雨涵', time:'10:00-12:00', date:today, teacher: demoTeacher },
+          { id:'c7', type:'ev3', studentName:'王浩然', time:'14:00-16:00', date:today, teacher: demoTeacher },
         ];
         data.value.progresses = [
           { id:'p1', studentName:'张小明', age:10, subject:'Scratch', level:'二级', courses:['海底世界','守门大战','超声蝙蝠挑战'], teacher: demoTeacher },
@@ -2298,7 +2419,7 @@ createApp({
 
     return {
       sidebarCollapsed, currentPage, studentTab, viewMode,
-      navItems, courseTypes, subjects,
+      navItems, courseTypes, courseTypeOptions, subjects,
       todayStr, weekdayStr, currentMonth, currentNav,
       data, teacherData, supabaseOnline,
       rosterSearch, rosterGenderFilter, rosterSort,
@@ -2312,6 +2433,8 @@ createApp({
       courseViewDate, courseViewDateLabel,
       prevCourseViewDate, nextCourseViewDate, goTodayCourseView,
       getCoursesByViewDate, getCourseCountByDate, openCourseDetail, addCourse, editCourse, saveCourse, deleteCourse,
+      modalLedgerStudent, ledgerStudentName, ledgerStudentDetail, openLedgerStudentDetail,
+      ledgerTodayGrouped, ledgerTodayTotalStudents, ledgerTodayTotalCourses, addCourseFromLedger,
       reimburseViewYear, reimburseViewMonthNum, reimburseMonthLabel,
       prevReimburseMonth, nextReimburseMonth, goCurrentReimburseMonth,
       openMealDetail, addMeal, editMeal, saveMeal, deleteMeal,
