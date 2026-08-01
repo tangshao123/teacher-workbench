@@ -382,8 +382,13 @@ tr:hover td { background:#fafcfb; }
   <!-- 主内容 -->
   <div v-if="isLoggedIn" :class="['main', { expanded: sidebarCollapsed }]">
     <div class="page-header">
-      <h1>{{ currentNav.label }}</h1>
-      <div class="date-info">{{ todayStr }} · {{ weekdayStr }}</div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <h1>{{ currentNav.label }}</h1>
+          <div class="date-info">{{ todayStr }} · {{ weekdayStr }}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" @click="handleLogout" style="margin-top:4px;">退出登录</button>
+      </div>
     </div>
     <div class="page-content">
 
@@ -1168,8 +1173,10 @@ tr:hover td { background:#fafcfb; }
 <script>
 const { createApp, ref, computed, watch, onMounted } = Vue;
 
-const STORAGE_KEY = 'teacher_workbench_data_v2';
+const STORAGE_KEY_PREFIX = 'teacher_workbench_data_v2';
 const DATA_FILE_NAME = 'teacher-workbench-data.json';
+let _currentUsername = null;
+function getStorageKey() { return _currentUsername ? `${STORAGE_KEY_PREFIX}_${_currentUsername}` : STORAGE_KEY_PREFIX; }
 
 /* ===== Supabase 客户端初始化 ===== */
 const supabaseClient = window.supabase.createClient(
@@ -1216,11 +1223,12 @@ async function loadData() {
 
   // 1. 优先从 Supabase 加载
   let supabaseData = null;
+  const dataId = _currentUsername || 'default';
   try {
     const { data: row, error } = await supabaseClient
       .from('workbench_data')
       .select('data')
-      .eq('id', 'default')
+      .eq('id', dataId)
       .single();
     if (!error && row && row.data) {
       supabaseData = row.data;
@@ -1233,7 +1241,7 @@ async function loadData() {
   // 2. 从 localStorage 读取
   let localData = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey());
     if (raw) {
       localData = JSON.parse(raw);
       for (const key of Object.keys(defaults)) {
@@ -1256,7 +1264,7 @@ async function loadData() {
 
   if (result) {
     // 同步到 localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+    localStorage.setItem(getStorageKey(), JSON.stringify(result));
     return { data: result, fromFile: false };
   }
 
@@ -1275,7 +1283,7 @@ async function loadData() {
         if (!(key in parsed)) parsed[key] = defaults[key];
       }
       // 同步到 localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      localStorage.setItem(getStorageKey(), JSON.stringify(parsed));
       return { data: parsed, fromFile: true };
     } catch(e) { /* 文件读取失败 → 回退默认值 */ }
   }
@@ -1288,10 +1296,11 @@ async function saveDataToFile(data) {
   // 添加更新时间戳
   data._updatedAt = Date.now();
   // 写入 localStorage（离线兜底）
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(getStorageKey(), JSON.stringify(data));
   // 异步写入 Supabase（不阻塞 UI）
+  const dataId = _currentUsername || 'default';
   try {
-    await supabaseClient.from('workbench_data').upsert({ id: 'default', data: data });
+    await supabaseClient.from('workbench_data').upsert({ id: dataId, data: data });
   } catch(e) { /* Supabase 不可用时静默失败 */ }
   // 文件写入（保留原有逻辑）
   const handle = await getStoredFileHandle();
@@ -1924,6 +1933,7 @@ createApp({
         if (session.expiresAt && now < session.expiresAt) {
           currentUser.value = session.user;
           isLoggedIn.value = true;
+          _currentUsername = session.user.username;
           return true;
         }
         localStorage.removeItem(SESSION_KEY);
@@ -1951,6 +1961,7 @@ createApp({
         } else {
           currentUser.value = { username: data.username, role: data.role || 'user' };
           isLoggedIn.value = true;
+          _currentUsername = data.username;
           localStorage.setItem(SESSION_KEY, JSON.stringify({
             user: currentUser.value,
             expiresAt: Date.now() + 24 * 60 * 60 * 1000
@@ -1966,6 +1977,7 @@ createApp({
     function handleLogout() {
       isLoggedIn.value = false;
       currentUser.value = null;
+      _currentUsername = null;
       localStorage.removeItem(SESSION_KEY);
       loginForm.value = { username: '', password: '' };
       currentPage.value = 'ledger';
